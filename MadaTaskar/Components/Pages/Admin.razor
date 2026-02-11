@@ -1,0 +1,244 @@
+@page "/admin"
+@inject AgentService AgentService
+@inject IDbContextFactory<AppDbContext> DbFactory
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.EntityFrameworkCore
+@using System.Security.Cryptography
+@using System.Text
+@using System.Security.Claims
+
+<PageTitle>Admin — Mada-TASK-ar 🐧</PageTitle>
+
+@if (!_isAdmin)
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">Access denied or loading...</MudAlert>
+}
+else
+{
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" Class="mt-4">
+        <MudTabPanel Text="Agents" Icon="@Icons.Material.Filled.SmartToy">
+            <MudPaper Class="pa-4">
+                <div class="d-flex justify-space-between align-center mb-4">
+                    <MudText Typo="Typo.h6">Agents</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAgent">Add Agent</MudButton>
+                </div>
+                <MudTable Items="_agents" Hover="true" Dense="true" Loading="_agentsLoading">
+                    <HeaderContent>
+                        <MudTh>Name</MudTh>
+                        <MudTh>Roles</MudTh>
+                        <MudTh>API Key</MudTh>
+                        <MudTh>Active</MudTh>
+                        <MudTh>Last Seen</MudTh>
+                        <MudTh>Created</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="agent">
+                        <MudTd>@agent.Name</MudTd>
+                        <MudTd>@agent.Roles</MudTd>
+                        <MudTd><code>@MaskKey(agent.ApiKey)</code></MudTd>
+                        <MudTd><MudChip T="string" Size="Size.Small" Color="@(agent.IsActive ? Color.Success : Color.Error)">@(agent.IsActive ? "Yes" : "No")</MudChip></MudTd>
+                        <MudTd>@(agent.LastSeenAt?.ToString("g") ?? "—")</MudTd>
+                        <MudTd>@agent.CreatedAt.ToString("g")</MudTd>
+                        <MudTd>
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" OnClick="@(() => CopyKey(agent.ApiKey))" />
+                            <MudIconButton Icon="@(agent.IsActive ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)" Size="Size.Small" Color="@(agent.IsActive ? Color.Error : Color.Success)" OnClick="@(() => ToggleAgent(agent))" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Users" Icon="@Icons.Material.Filled.People">
+            <MudPaper Class="pa-4">
+                <div class="d-flex justify-space-between align-center mb-4">
+                    <MudText Typo="Typo.h6">Users</MudText>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="AddUser">Add User</MudButton>
+                </div>
+                <MudTable Items="_users" Hover="true" Dense="true" Loading="_usersLoading">
+                    <HeaderContent>
+                        <MudTh>Username</MudTh>
+                        <MudTh>Display Name</MudTh>
+                        <MudTh>Admin</MudTh>
+                        <MudTh>Created</MudTh>
+                        <MudTh>Actions</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="usr">
+                        <MudTd>@usr.Username</MudTd>
+                        <MudTd>@usr.DisplayName</MudTd>
+                        <MudTd><MudChip T="string" Size="Size.Small" Color="@(usr.IsAdmin ? Color.Primary : Color.Default)">@(usr.IsAdmin ? "Yes" : "No")</MudChip></MudTd>
+                        <MudTd>@usr.CreatedAt.ToString("g")</MudTd>
+                        <MudTd>
+                            @if (usr.Id != _currentUserId)
+                            {
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteUser(usr))" />
+                            }
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Activity Log" Icon="@Icons.Material.Filled.History">
+            <MudPaper Class="pa-4">
+                <div class="d-flex justify-space-between align-center mb-4">
+                    <MudText Typo="Typo.h6">Activity Log</MudText>
+                    <div class="d-flex align-center gap-2">
+                        <MudSelect T="int" @bind-Value="_activityLimit" Label="Limit" Variant="Variant.Outlined" Dense="true" Style="width:100px;" AnchorOrigin="Origin.BottomCenter">
+                            <MudSelectItem Value="25">25</MudSelectItem>
+                            <MudSelectItem Value="50">50</MudSelectItem>
+                            <MudSelectItem Value="100">100</MudSelectItem>
+                        </MudSelect>
+                        <MudIconButton Icon="@Icons.Material.Filled.Refresh" OnClick="LoadActivity" />
+                    </div>
+                </div>
+                <MudTable Items="_activities" Hover="true" Dense="true" Loading="_activitiesLoading">
+                    <HeaderContent>
+                        <MudTh>Time</MudTh>
+                        <MudTh>Agent</MudTh>
+                        <MudTh>Action</MudTh>
+                        <MudTh>Details</MudTh>
+                        <MudTh>Task ID</MudTh>
+                    </HeaderContent>
+                    <RowTemplate Context="act">
+                        <MudTd>@act.CreatedAt.ToString("g")</MudTd>
+                        <MudTd>@act.Agent?.Name</MudTd>
+                        <MudTd>@act.Action</MudTd>
+                        <MudTd Style="max-width:300px;overflow:hidden;text-overflow:ellipsis;">@act.Details</MudTd>
+                        <MudTd>@act.TaskId</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            </MudPaper>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private List<Agent> _agents = new();
+    private List<User> _users = new();
+    private List<AgentActivity> _activities = new();
+    private bool _agentsLoading, _usersLoading, _activitiesLoading;
+    private int _activityLimit = 50;
+    private bool _isAdmin;
+    private int _currentUserId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState != null)
+        {
+            var state = await AuthState;
+            var user = state.User;
+            _isAdmin = user.FindFirst("IsAdmin")?.Value == "True";
+            int.TryParse(user.FindFirst(ClaimTypes.NameIdentifier)?.Value, out _currentUserId);
+        }
+        if (_isAdmin) await LoadAll();
+    }
+
+    private async Task LoadAll()
+    {
+        await Task.WhenAll(LoadAgents(), LoadUsers(), LoadActivity());
+    }
+
+    private async Task LoadAgents()
+    {
+        _agentsLoading = true;
+        _agents = await AgentService.GetAgentsAsync();
+        _agentsLoading = false;
+    }
+
+    private async Task LoadUsers()
+    {
+        _usersLoading = true;
+        using var db = await DbFactory.CreateDbContextAsync();
+        _users = await db.Users.OrderBy(u => u.Id).ToListAsync();
+        _usersLoading = false;
+    }
+
+    private async Task LoadActivity()
+    {
+        _activitiesLoading = true;
+        _activities = await AgentService.GetActivityLogAsync(_activityLimit);
+        _activitiesLoading = false;
+    }
+
+    private static string MaskKey(string key)
+    {
+        if (key.Length <= 8) return "****";
+        return key[..3] + "****" + key[^4..];
+    }
+
+    private async Task CopyKey(string key)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", key);
+        Snackbar.Add("API key copied!", Severity.Success);
+    }
+
+    private async Task ToggleAgent(Agent agent)
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        var a = await db.Agents.FindAsync(agent.Id);
+        if (a != null)
+        {
+            a.IsActive = !a.IsActive;
+            await db.SaveChangesAsync();
+        }
+        await LoadAgents();
+    }
+
+    private async Task AddAgent()
+    {
+        var parameters = new DialogParameters<AddAgentDialog>();
+        var dialog = await DialogService.ShowAsync<AddAgentDialog>("Add Agent", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is AgentCreateModel model)
+        {
+            await AgentService.RegisterAgentAsync(model.Name, model.Roles);
+            Snackbar.Add("Agent created!", Severity.Success);
+            await LoadAgents();
+        }
+    }
+
+    private async Task AddUser()
+    {
+        var parameters = new DialogParameters<AddUserDialog>();
+        var dialog = await DialogService.ShowAsync<AddUserDialog>("Add User", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is UserCreateModel model)
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+            db.Users.Add(new User
+            {
+                Username = model.Username,
+                PasswordHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(model.Password))).ToLower(),
+                DisplayName = model.DisplayName,
+                IsAdmin = model.IsAdmin,
+                CreatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+            Snackbar.Add("User created!", Severity.Success);
+            await LoadUsers();
+        }
+    }
+
+    private async Task DeleteUser(User user)
+    {
+        bool? confirm = await DialogService.ShowMessageBox("Delete User", $"Delete user '{user.Username}'?", yesText: "Delete", cancelText: "Cancel");
+        if (confirm == true)
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+            var u = await db.Users.FindAsync(user.Id);
+            if (u != null)
+            {
+                db.Users.Remove(u);
+                await db.SaveChangesAsync();
+            }
+            Snackbar.Add("User deleted", Severity.Info);
+            await LoadUsers();
+        }
+    }
+}

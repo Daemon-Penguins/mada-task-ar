@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace MadaTaskar.Data;
 
@@ -15,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskReference> TaskReferences => Set<TaskReference>();
     public DbSet<TaskPhaseLog> TaskPhaseLogs => Set<TaskPhaseLog>();
     public DbSet<TaskApproval> TaskApprovals => Set<TaskApproval>();
+    public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +29,17 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<TaskReference>().HasIndex(r => r.TaskId);
         modelBuilder.Entity<TaskPhaseLog>().HasIndex(l => l.TaskId);
         modelBuilder.Entity<TaskApproval>().HasIndex(a => a.TaskId);
+
+        modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique();
+        modelBuilder.Entity<User>().HasData(new User
+        {
+            Id = 1,
+            Username = "user",
+            PasswordHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("password"))).ToLower(),
+            DisplayName = "Kowalski",
+            IsAdmin = true,
+            CreatedAt = DateTime.UtcNow
+        });
 
         modelBuilder.Entity<Agent>().HasData(new Agent
         {

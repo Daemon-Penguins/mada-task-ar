@@ -1,18 +1,42 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.Components.Authorization
 
 <MudThemeProvider IsDarkMode="true" />
 <MudPopoverProvider />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
-<MudLayout>
-    <MudAppBar Elevation="1" Color="Color.Primary">
-        <MudText Typo="Typo.h5">🐧</MudText>
-        <MudText Typo="Typo.h5" Class="ml-1">Mada-TASK-ar</MudText>
-        <MudSpacer />
-        <MudText Typo="Typo.body2" Class="mr-4">🐧 Kanban for Humans & AI Agents</MudText>
-    </MudAppBar>
-    <MudMainContent Class="pt-16 px-4">
-        @Body
-    </MudMainContent>
-</MudLayout>
+<AuthorizeView>
+    <Authorized>
+        <MudLayout>
+            <MudAppBar Elevation="1" Color="Color.Primary">
+                <MudText Typo="Typo.h5">🐧</MudText>
+                <MudText Typo="Typo.h5" Class="ml-1">Mada-TASK-ar</MudText>
+                <MudSpacer />
+                @if (context.User.FindFirst("IsAdmin")?.Value == "True")
+                {
+                    <MudButton Variant="Variant.Text" Color="Color.Inherit" Href="/admin" Class="mr-2">
+                        Admin
+                    </MudButton>
+                }
+                <MudText Typo="Typo.body2" Class="mr-4">@(context.User.FindFirst("DisplayName")?.Value ?? context.User.Identity?.Name)</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Inherit" OnClick="Logout" />
+            </MudAppBar>
+            <MudMainContent Class="pt-16 px-4">
+                @Body
+            </MudMainContent>
+        </MudLayout>
+    </Authorized>
+    <NotAuthorized>
+        @{ Nav.NavigateTo("/login", forceLoad: true); }
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private async Task Logout()
+    {
+        await JS.InvokeVoidAsync("eval", "fetch('/api/auth/logout', { method: 'POST' }).then(() => location.href = '/login')");
+    }
+}

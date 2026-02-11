@@ -14,12 +14,12 @@ else
                        Items="_tasks"
                        ItemsSelector="@((item, zone) => item.ColumnId.ToString() == zone)"
                        ItemDropped="OnItemDropped"
-                       Class="d-flex flex-row flex-wrap gap-4 mt-4"
-                       Style="overflow-x: auto; min-height: 70vh;">
+                       Class="d-flex flex-row gap-4 mt-4"
+                       Style="width: 100%; min-height: 70vh;">
         <ChildContent>
             @foreach (var column in _columns)
             {
-                <MudPaper Elevation="2" Class="pa-3 flex-shrink-0" Style="width: 280px; min-height: 400px; background-color: var(--mud-palette-surface);">
+                <MudPaper Elevation="2" Class="pa-3" Style="flex: 1; min-width: 0; min-height: 400px; background-color: var(--mud-palette-surface);">
                     <div class="d-flex justify-space-between align-center mb-3">
                         <MudText Typo="Typo.h6">@column.Name</MudText>
                         <MudBadge Content="@column.Tasks.Count" Color="Color.Primary" Overlap="false">

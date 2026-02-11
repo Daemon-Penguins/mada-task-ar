@@ -1,0 +1,25 @@
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudTextField @bind-Value="_username" Label="Username" Variant="Variant.Outlined" Class="mb-4" />
+        <MudTextField @bind-Value="_password" Label="Password" Variant="Variant.Outlined" InputType="InputType.Password" Class="mb-4" />
+        <MudTextField @bind-Value="_displayName" Label="Display Name" Variant="Variant.Outlined" Class="mb-4" />
+        <MudCheckBox @bind-Value="_isAdmin" Label="Admin" Color="Color.Primary" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@(string.IsNullOrWhiteSpace(_username) || string.IsNullOrWhiteSpace(_password))">Create</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    private string _username = "";
+    private string _password = "";
+    private string _displayName = "";
+    private bool _isAdmin;
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(new UserCreateModel(_username, _password, _displayName, _isAdmin)));
+}

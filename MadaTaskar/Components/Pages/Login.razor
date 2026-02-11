@@ -1,0 +1,94 @@
+@page "/login"
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@layout EmptyLayout
+
+<PageTitle>Login — Mada-TASK-ar 🐧</PageTitle>
+
+<MudThemeProvider IsDarkMode="true" />
+
+<div style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #1a1a2e;">
+    <MudPaper Elevation="4" Class="pa-8" Style="width: 400px; background: #16213e; border-radius: 12px;">
+        <div class="d-flex flex-column align-center mb-6">
+            <MudText Typo="Typo.h4">🐧</MudText>
+            <MudText Typo="Typo.h5" Class="mt-2">Mada-TASK-ar</MudText>
+            <MudText Typo="Typo.body2" Style="color: #888;">Sign in to continue</MudText>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Class="mb-4">@_error</MudAlert>
+        }
+
+        <MudTextField @bind-Value="_username" Label="Username" Variant="Variant.Outlined"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person"
+                      Class="mb-4" OnKeyDown="OnKeyDown" />
+
+        <MudTextField @bind-Value="_password" Label="Password" Variant="Variant.Outlined"
+                      InputType="InputType.Password"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Lock"
+                      Class="mb-4" OnKeyDown="OnKeyDown" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true"
+                   Size="Size.Large" OnClick="DoLogin" Disabled="_loading">
+            @if (_loading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+            }
+            Sign In
+        </MudButton>
+    </MudPaper>
+</div>
+
+@code {
+    private string _username = "";
+    private string _password = "";
+    private string? _error;
+    private bool _loading;
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoLogin();
+    }
+
+    private async Task DoLogin()
+    {
+        _error = null;
+        _loading = true;
+        try
+        {
+            // Use JS fetch to POST to the API (server-side cookie)
+            var result = await JS.InvokeAsync<LoginResult>("eval", $@"
+                (async () => {{
+                    const r = await fetch('/api/auth/login', {{
+                        method: 'POST',
+                        headers: {{ 'Content-Type': 'application/json' }},
+                        body: JSON.stringify({{ username: '{EscapeJs(_username)}', password: '{EscapeJs(_password)}' }})
+                    }});
+                    return {{ ok: r.ok, status: r.status }};
+                }})()
+            ");
+
+            if (result.Ok)
+            {
+                Nav.NavigateTo("/", forceLoad: true);
+            }
+            else
+            {
+                _error = "Invalid username or password";
+            }
+        }
+        catch
+        {
+            _error = "Login failed. Please try again.";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string EscapeJs(string s) => s.Replace("\\", "\\\\").Replace("'", "\\'");
+
+    private record LoginResult(bool Ok, int Status);
+}
