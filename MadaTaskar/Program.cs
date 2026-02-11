@@ -10,7 +10,7 @@ using MadaTaskar.Api;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    .AddInteractiveServerComponents(options => options.DetailedErrors = true);
 
 builder.Services.AddMudServices();
 
@@ -30,6 +30,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
         options.ExpireTimeSpan = TimeSpan.FromDays(30);
     });
 builder.Services.AddAuthorization();
+builder.Services.AddScoped<AuthenticationStateProvider, Microsoft.AspNetCore.Components.Server.ServerAuthenticationStateProvider>();
 builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.ConfigureHttpJsonOptions(options =>
