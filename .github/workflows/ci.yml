@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore
+        run: dotnet restore MadaTaskar/MadaTaskar.csproj
+
+      - name: Build
+        run: dotnet build MadaTaskar/MadaTaskar.csproj --no-restore -c Release
+
+      - name: Docker build
+        run: docker build -t madataskar .
