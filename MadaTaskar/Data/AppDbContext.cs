@@ -9,9 +9,21 @@ public class AppDbContext : DbContext
     public DbSet<Board> Boards => Set<Board>();
     public DbSet<Column> Columns => Set<Column>();
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
+    public DbSet<Agent> Agents => Set<Agent>();
+    public DbSet<AgentActivity> AgentActivities => Set<AgentActivity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Agent>().HasIndex(a => a.ApiKey).IsUnique();
+        modelBuilder.Entity<AgentActivity>().HasIndex(a => a.CreatedAt);
+        modelBuilder.Entity<AgentActivity>().HasIndex(a => a.AgentId);
+
+        modelBuilder.Entity<Agent>().HasData(new Agent
+        {
+            Id = 1, Name = "Rico", ApiKey = "penguin-rico-key-change-me",
+            Role = "admin", IsActive = true, CreatedAt = DateTime.UtcNow
+        });
+
         modelBuilder.Entity<Board>().HasData(new Board { Id = 1, Name = "Operations Board" });
 
         modelBuilder.Entity<Column>().HasData(

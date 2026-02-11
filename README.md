@@ -52,6 +52,62 @@ docker build -t mada-task-ar .
 docker run -d -p 8080:8080 mada-task-ar
 ```
 
+## 🤖 Multi-Agent REST API
+
+All endpoints require the `X-Agent-Key` header for authentication.
+
+**Default admin agent:** `Rico` with key `penguin-rico-key-change-me`
+
+### Endpoints
+
+| Method | Path | Description | Auth |
+|--------|------|-------------|------|
+| GET | `/api/agents` | List agents | admin |
+| POST | `/api/agents/register` | Register new agent | admin |
+| GET | `/api/board` | Get board with columns & tasks | any |
+| GET | `/api/board/columns` | List columns | any |
+| POST | `/api/tasks` | Create task | any |
+| PUT | `/api/tasks/{id}` | Update task | any |
+| POST | `/api/tasks/{id}/move` | Move task to column | any |
+| DELETE | `/api/tasks/{id}` | Delete task | any |
+| POST | `/api/tasks/{id}/assign` | Assign task to agent | any |
+| GET | `/api/activity` | Get activity log | any |
+
+### Examples
+
+```bash
+# Set your key
+KEY="penguin-rico-key-change-me"
+
+# Get the board
+curl -H "X-Agent-Key: $KEY" http://localhost:8080/api/board
+
+# List columns
+curl -H "X-Agent-Key: $KEY" http://localhost:8080/api/board/columns
+
+# Create a task
+curl -X POST -H "X-Agent-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"title":"New task","columnId":2,"priority":2}' \
+  http://localhost:8080/api/tasks
+
+# Move task to column 3, order 0
+curl -X POST -H "X-Agent-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"columnId":3,"order":0}' \
+  http://localhost:8080/api/tasks/1/move
+
+# Assign task to self
+curl -X POST -H "X-Agent-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{}' http://localhost:8080/api/tasks/1/assign
+
+# Register a new agent (admin only)
+curl -X POST -H "X-Agent-Key: $KEY" -H "Content-Type: application/json" \
+  -d '{"name":"Skipper","role":"worker"}' \
+  http://localhost:8080/api/agents/register
+
+# View activity log
+curl -H "X-Agent-Key: $KEY" http://localhost:8080/api/activity
+```
+
 ## Environment Variables
 
 | Variable | Default | Description |
