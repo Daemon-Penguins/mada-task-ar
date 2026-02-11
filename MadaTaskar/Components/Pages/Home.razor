@@ -1,6 +1,7 @@
 @page "/"
 @inject BoardService BoardService
 @inject IDialogService DialogService
+@inject IJSRuntime JS
 
 <PageTitle>Mada-TASK-ar 🐧</PageTitle>
 
@@ -11,6 +12,7 @@
 else
 {
     <MudDropContainer T="TaskItem"
+                       @key="_refreshKey"
                        Items="_tasks"
                        ItemsSelector="@((item, zone) => item.ColumnId.ToString() == zone)"
                        ItemDropped="OnItemDropped"
@@ -80,6 +82,7 @@ else
 @code {
     private List<Column>? _columns;
     private List<TaskItem> _tasks = new();
+    private int _refreshKey = 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -90,6 +93,8 @@ else
     {
         _columns = await BoardService.GetColumnsAsync();
         _tasks = _columns.SelectMany(c => c.Tasks).ToList();
+        _refreshKey++;
+        StateHasChanged();
     }
 
     private async Task OnItemDropped(MudItemDropInfo<TaskItem> info)
@@ -165,6 +170,8 @@ else
         {
             if (result.Data is "delete")
             {
+                await JS.InvokeVoidAsync("glitterBomb");
+                await Task.Delay(500);
                 await BoardService.DeleteTaskAsync(editTask.Id);
             }
             else
