@@ -11,17 +11,26 @@ public class AppDbContext : DbContext
     public DbSet<TaskItem> Tasks => Set<TaskItem>();
     public DbSet<Agent> Agents => Set<Agent>();
     public DbSet<AgentActivity> AgentActivities => Set<AgentActivity>();
+    public DbSet<TaskComment> TaskComments => Set<TaskComment>();
+    public DbSet<TaskReference> TaskReferences => Set<TaskReference>();
+    public DbSet<TaskPhaseLog> TaskPhaseLogs => Set<TaskPhaseLog>();
+    public DbSet<TaskApproval> TaskApprovals => Set<TaskApproval>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Agent>().HasIndex(a => a.ApiKey).IsUnique();
         modelBuilder.Entity<AgentActivity>().HasIndex(a => a.CreatedAt);
         modelBuilder.Entity<AgentActivity>().HasIndex(a => a.AgentId);
+        modelBuilder.Entity<TaskComment>().HasIndex(c => c.TaskId);
+        modelBuilder.Entity<TaskComment>().HasIndex(c => c.AgentId);
+        modelBuilder.Entity<TaskReference>().HasIndex(r => r.TaskId);
+        modelBuilder.Entity<TaskPhaseLog>().HasIndex(l => l.TaskId);
+        modelBuilder.Entity<TaskApproval>().HasIndex(a => a.TaskId);
 
         modelBuilder.Entity<Agent>().HasData(new Agent
         {
             Id = 1, Name = "Rico", ApiKey = "penguin-rico-key-change-me",
-            Role = "admin", IsActive = true, CreatedAt = DateTime.UtcNow
+            Roles = "admin,worker,researcher", IsActive = true, CreatedAt = DateTime.UtcNow
         });
 
         modelBuilder.Entity<Board>().HasData(new Board { Id = 1, Name = "Operations Board" });

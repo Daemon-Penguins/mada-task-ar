@@ -20,7 +20,7 @@ public class AgentService
         {
             Name = name,
             ApiKey = $"pk-{Convert.ToHexString(RandomNumberGenerator.GetBytes(24)).ToLower()}",
-            Role = role,
+            Roles = role,
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };

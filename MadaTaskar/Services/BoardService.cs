@@ -53,6 +53,9 @@ public class BoardService
         existing.Priority = task.Priority;
         existing.ColumnId = task.ColumnId;
         existing.Order = task.Order;
+        existing.Phase = task.Phase;
+        existing.AuthorAgentId = task.AuthorAgentId;
+        existing.ReadyToWorkChecked = task.ReadyToWorkChecked;
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
     }
@@ -76,6 +79,49 @@ public class BoardService
         if (task is null) return;
 
         db.Tasks.Remove(task);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<TaskItem?> GetTaskWithDetailsAsync(int taskId)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        return await db.Tasks
+            .Include(t => t.Comments).ThenInclude(c => c.Agent)
+            .Include(t => t.References).ThenInclude(r => r.Agent)
+            .Include(t => t.PhaseLogs).ThenInclude(l => l.Agent)
+            .Include(t => t.Approvals).ThenInclude(a => a.Agent)
+            .FirstOrDefaultAsync(t => t.Id == taskId);
+    }
+
+    public async Task AddCommentAsync(TaskComment comment)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        comment.CreatedAt = DateTime.UtcNow;
+        db.TaskComments.Add(comment);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task AddReferenceAsync(TaskReference reference)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        reference.CreatedAt = DateTime.UtcNow;
+        db.TaskReferences.Add(reference);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task AddPhaseLogAsync(TaskPhaseLog log)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        log.CreatedAt = DateTime.UtcNow;
+        db.TaskPhaseLogs.Add(log);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task AddApprovalAsync(TaskApproval approval)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        approval.CreatedAt = DateTime.UtcNow;
+        db.TaskApprovals.Add(approval);
         await db.SaveChangesAsync();
     }
 }

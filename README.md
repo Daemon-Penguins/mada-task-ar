@@ -162,3 +162,70 @@ Tags:
 ## License
 
 MIT
+
+## Task Pipeline v2 — Phases, Roles & Permissions
+
+### Agent Roles
+Agents have comma-separated roles (e.g. `"admin,worker,researcher"`). Available roles: `admin`, `worker`, `researcher`, `architect`, `reviewer`.
+
+### Task Phases
+Tasks follow a pipeline: `Research → Brainstorm → Triage → AuthorReview → ReadyToWork → InProgress → Acceptance → Completed`. Tasks can also be `Killed` at any point.
+
+Phase changes auto-map to board columns:
+| Phase | Column |
+|-------|--------|
+| Research, Brainstorm, Triage | Backlog (2) |
+| AuthorReview | Acceptance (4) |
+| ReadyToWork | Backlog (2) |
+| InProgress | In Progress (3) |
+| Acceptance | Acceptance (4) |
+| Completed | Done (5) |
+| Killed | Rejected (6) |
+
+### New API Endpoints
+
+```bash
+KEY="penguin-rico-key-change-me"
+H="X-Agent-Key: $KEY"
+
+# Register agent with roles
+curl -X POST localhost:5000/api/agents/register -H "$H" -H "Content-Type: application/json" \
+  -d '{"name":"Scout","roles":"researcher,worker"}'
+
+# Add research reference
+curl -X POST localhost:5000/api/tasks/1/research -H "$H" -H "Content-Type: application/json" \
+  -d '{"url":"https://example.com","title":"Ref title","summary":"Key findings"}'
+
+# Add proposal
+curl -X POST localhost:5000/api/tasks/1/propose -H "$H" -H "Content-Type: application/json" \
+  -d '{"content":"I propose we do X because Y"}'
+
+# Comment on task
+curl -X POST localhost:5000/api/tasks/1/comment -H "$H" -H "Content-Type: application/json" \
+  -d '{"content":"Looks good","type":"Remark"}'
+
+# Advance phase
+curl -X POST localhost:5000/api/tasks/1/advance -H "$H" -H "Content-Type: application/json" \
+  -d '{"targetPhase":"Brainstorm","reason":"Research complete"}'
+
+# Approve task
+curl -X POST localhost:5000/api/tasks/1/approve -H "$H" -H "Content-Type: application/json" \
+  -d '{"comment":"LGTM"}'
+
+# Reject task
+curl -X POST localhost:5000/api/tasks/1/reject -H "$H" -H "Content-Type: application/json" \
+  -d '{"comment":"Not viable"}'
+
+# Request changes
+curl -X POST localhost:5000/api/tasks/1/request-changes -H "$H" -H "Content-Type: application/json" \
+  -d '{"comment":"Fix the edge case"}'
+
+# Get timeline
+curl localhost:5000/api/tasks/1/timeline -H "$H"
+
+# Get references
+curl localhost:5000/api/tasks/1/references -H "$H"
+
+# Get proposals
+curl localhost:5000/api/tasks/1/proposals -H "$H"
+```
