@@ -1,0 +1,175 @@
+@page "/"
+@inject BoardService BoardService
+@inject IDialogService DialogService
+
+<PageTitle>Mada-TASK-ar 🐧</PageTitle>
+
+@if (_columns is null)
+{
+    <MudProgressCircular Indeterminate="true" Class="mt-8" />
+}
+else
+{
+    <MudDropContainer T="TaskItem"
+                       Items="_tasks"
+                       ItemsSelector="@((item, zone) => item.ColumnId.ToString() == zone)"
+                       ItemDropped="OnItemDropped"
+                       Class="d-flex flex-row flex-wrap gap-4 mt-4"
+                       Style="overflow-x: auto; min-height: 70vh;">
+        <ChildContent>
+            @foreach (var column in _columns)
+            {
+                <MudPaper Elevation="2" Class="pa-3 flex-shrink-0" Style="width: 280px; min-height: 400px; background-color: var(--mud-palette-surface);">
+                    <div class="d-flex justify-space-between align-center mb-3">
+                        <MudText Typo="Typo.h6">@column.Name</MudText>
+                        <MudBadge Content="@column.Tasks.Count" Color="Color.Primary" Overlap="false">
+                            <MudIcon Icon="@Icons.Material.Filled.List" Size="Size.Small" />
+                        </MudBadge>
+                    </div>
+                    <MudDropZone T="TaskItem"
+                                  Identifier="@column.Id.ToString()"
+                                  Class="d-flex flex-column gap-2"
+                                  Style="min-height: 200px;"
+                                  AllowReorder="true" />
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Add"
+                               FullWidth="true"
+                               Class="mt-2"
+                               OnClick="@(() => CreateTask(column.Id))">
+                        Add Task
+                    </MudButton>
+                </MudPaper>
+            }
+        </ChildContent>
+        <ItemRenderer>
+            <MudCard Elevation="1" Class="pa-2 cursor-grab" Style="background-color: var(--mud-palette-background);">
+                <MudCardContent Class="pa-1">
+                    <div class="d-flex justify-space-between align-center">
+                        <MudText Typo="Typo.subtitle2">@context.Title</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit"
+                                       Size="Size.Small"
+                                       OnClick="@(() => EditTask(context))" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(context.Description))
+                    {
+                        <MudText Typo="Typo.body2" Class="mt-1" Style="color: var(--mud-palette-text-secondary);">
+                            @(context.Description.Length > 80 ? context.Description[..80] + "…" : context.Description)
+                        </MudText>
+                    }
+                    <div class="d-flex justify-space-between align-center mt-2">
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Color="@GetPriorityColor(context.Priority)"
+                                 Variant="Variant.Filled">
+                            @context.Priority
+                        </MudChip>
+                        @if (!string.IsNullOrEmpty(context.Assignee))
+                        {
+                            <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Person">
+                                @context.Assignee
+                            </MudChip>
+                        }
+                    </div>
+                </MudCardContent>
+            </MudCard>
+        </ItemRenderer>
+    </MudDropContainer>
+}
+
+@code {
+    private List<Column>? _columns;
+    private List<TaskItem> _tasks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBoard();
+    }
+
+    private async Task LoadBoard()
+    {
+        _columns = await BoardService.GetColumnsAsync();
+        _tasks = _columns.SelectMany(c => c.Tasks).ToList();
+    }
+
+    private async Task OnItemDropped(MudItemDropInfo<TaskItem> info)
+    {
+        if (info.Item is null) return;
+
+        var newColumnId = int.Parse(info.DropzoneIdentifier);
+        info.Item.ColumnId = newColumnId;
+        info.Item.Order = info.IndexInZone;
+
+        await BoardService.MoveTaskAsync(info.Item.Id, newColumnId, info.IndexInZone);
+        await LoadBoard();
+    }
+
+    private async Task CreateTask(int columnId)
+    {
+        var task = new TaskItem { ColumnId = columnId };
+        var parameters = new DialogParameters<TaskDialog>
+        {
+            { x => x.Task, task },
+            { x => x.Columns, _columns! },
+            { x => x.IsNew, true }
+        };
+
+        var dialog = await DialogService.ShowAsync<TaskDialog>("New Task", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            await BoardService.CreateTaskAsync(task);
+            await LoadBoard();
+        }
+    }
+
+    private async Task EditTask(TaskItem task)
+    {
+        // Clone to avoid modifying the original before save
+        var editTask = new TaskItem
+        {
+            Id = task.Id,
+            Title = task.Title,
+            Description = task.Description,
+            Assignee = task.Assignee,
+            Priority = task.Priority,
+            ColumnId = task.ColumnId,
+            Order = task.Order
+        };
+
+        var parameters = new DialogParameters<TaskDialog>
+        {
+            { x => x.Task, editTask },
+            { x => x.Columns, _columns! },
+            { x => x.IsNew, false }
+        };
+
+        var dialog = await DialogService.ShowAsync<TaskDialog>("Edit Task", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled)
+        {
+            if (result.Data is "delete")
+            {
+                await BoardService.DeleteTaskAsync(editTask.Id);
+            }
+            else
+            {
+                await BoardService.UpdateTaskAsync(editTask);
+            }
+            await LoadBoard();
+        }
+    }
+
+    private Color GetPriorityColor(Priority priority) => priority switch
+    {
+        Priority.Low => Color.Info,
+        Priority.Medium => Color.Warning,
+        Priority.High => Color.Error,
+        Priority.Critical => Color.Dark,
+        _ => Color.Default
+    };
+}

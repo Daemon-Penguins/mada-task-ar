@@ -1,0 +1,56 @@
+@using MudBlazor
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            <MudIcon Icon="@(IsNew ? Icons.Material.Filled.Add : Icons.Material.Filled.Edit)" Class="mr-2" />
+            @(IsNew ? "New Task" : "Edit Task")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="Task.Title" Label="Title" Required="true" Class="mb-3" />
+        <MudTextField @bind-Value="Task.Description" Label="Description" Lines="3" Class="mb-3" />
+        <MudTextField @bind-Value="Task.Assignee" Label="Assignee" Class="mb-3" />
+        <MudSelect @bind-Value="Task.Priority" Label="Priority" Class="mb-3">
+            @foreach (Priority p in Enum.GetValues<Priority>())
+            {
+                <MudSelectItem Value="@p">@p</MudSelectItem>
+            }
+        </MudSelect>
+        <MudSelect @bind-Value="Task.ColumnId" Label="Column" Class="mb-3">
+            @foreach (var col in Columns)
+            {
+                <MudSelectItem Value="@col.Id">@col.Name</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        @if (!IsNew)
+        {
+            <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="Delete" Class="mr-auto">Delete</MudButton>
+        }
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   Disabled="@string.IsNullOrWhiteSpace(Task.Title)">
+            @(IsNew ? "Create" : "Save")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter]
+    public TaskItem Task { get; set; } = new();
+
+    [Parameter]
+    public List<Column> Columns { get; set; } = new();
+
+    [Parameter]
+    public bool IsNew { get; set; }
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+    private void Cancel() => MudDialog.Cancel();
+    private void Delete() => MudDialog.Close(DialogResult.Ok("delete"));
+}

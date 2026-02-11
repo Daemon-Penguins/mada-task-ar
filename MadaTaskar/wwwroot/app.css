@@ -1,0 +1,11 @@
+html, body {
+    font-family: 'Roboto', sans-serif;
+}
+
+.cursor-grab {
+    cursor: grab;
+}
+
+.cursor-grab:active {
+    cursor: grabbing;
+}

@@ -1,0 +1,18 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider IsDarkMode="true" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Primary">
+        <MudText Typo="Typo.h5">🐧</MudText>
+        <MudText Typo="Typo.h5" Class="ml-1">Mada-TASK-ar</MudText>
+        <MudSpacer />
+        <MudText Typo="Typo.body2" Class="mr-4">🐧 Kanban for Humans & AI Agents</MudText>
+    </MudAppBar>
+    <MudMainContent Class="pt-16 px-4">
+        @Body
+    </MudMainContent>
+</MudLayout>
