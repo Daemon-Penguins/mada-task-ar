@@ -288,6 +288,78 @@ public static class AgentApiEndpoints
             return Results.Ok(task.Comments.Where(c => c.Type == CommentType.Proposal).Select(c => new { c.Id, c.Content, c.CreatedAt, agent = c.Agent.Name }));
         });
 
+        // --- Acceptance Criteria ---
+        api.MapGet("/tasks/{id:int}/criteria", async (HttpContext ctx, BoardService boardService, int id) =>
+        {
+            var criteria = await boardService.GetAcceptanceCriteriaAsync(id);
+            return Results.Ok(criteria.Select(c => new { c.Id, c.TaskId, c.Description, c.IsMet, c.Order, c.CreatedAt, c.CheckedAt, CheckedByAgent = c.CheckedByAgent?.Name }));
+        });
+
+        api.MapPost("/tasks/{id:int}/criteria", async (HttpContext ctx, BoardService boardService, AgentService agentService, int id, AddCriterionRequest req) =>
+        {
+            var agent = GetAgent(ctx);
+            var task = await boardService.GetTaskWithDetailsAsync(id);
+            if (task is null) return Results.NotFound();
+            var criterion = new AcceptanceCriterion { TaskId = id, Description = req.Description, Order = req.Order ?? 0 };
+            await boardService.AddAcceptanceCriterionAsync(criterion);
+            await agentService.LogActivityAsync(agent.Id, "add_criterion", $"Added criterion '{req.Description}' to task #{id}", id);
+            return Results.Created($"/api/tasks/{id}/criteria/{criterion.Id}", new { criterion.Id, criterion.TaskId, criterion.Description, criterion.Order, criterion.CreatedAt });
+        });
+
+        api.MapPut("/tasks/{id:int}/criteria/{cid:int}", async (HttpContext ctx, BoardService boardService, AgentService agentService, int id, int cid, UpdateCriterionRequest req) =>
+        {
+            var agent = GetAgent(ctx);
+            var task = await boardService.GetTaskWithDetailsAsync(id);
+            if (task is null) return Results.NotFound();
+            var criterion = task.AcceptanceCriteria.FirstOrDefault(c => c.Id == cid);
+            if (criterion is null) return Results.NotFound();
+
+            await boardService.UpdateAcceptanceCriterionAsync(cid, req.IsMet, agent.Id);
+            await agentService.LogActivityAsync(agent.Id, "update_criterion", $"{(req.IsMet ? "Checked" : "Unchecked")} criterion '{criterion.Description}' on task #{id}", id);
+
+            // Check if all criteria are now met and task is in Acceptance phase
+            if (req.IsMet)
+            {
+                var allCriteria = await boardService.GetAcceptanceCriteriaAsync(id);
+                // Refresh the one we just updated
+                var allMet = allCriteria.All(c => c.Id == cid ? true : c.IsMet);
+                if (allMet && allCriteria.Count > 0 && task.Phase == TaskPhase.Acceptance)
+                {
+                    var comment = new TaskComment { TaskId = id, AgentId = agent.Id, Content = "All acceptance criteria met — ready for auto-accept", Type = CommentType.General };
+                    await boardService.AddCommentAsync(comment);
+                }
+            }
+
+            return Results.Ok(new { cid, isMet = req.IsMet });
+        });
+
+        api.MapDelete("/tasks/{id:int}/criteria/{cid:int}", async (HttpContext ctx, BoardService boardService, AgentService agentService, int id, int cid) =>
+        {
+            var agent = GetAgent(ctx);
+            await boardService.DeleteAcceptanceCriterionAsync(cid);
+            await agentService.LogActivityAsync(agent.Id, "delete_criterion", $"Deleted criterion #{cid} from task #{id}", id);
+            return Results.Ok();
+        });
+
+        api.MapPost("/tasks/{id:int}/auto-accept", async (HttpContext ctx, BoardService boardService, AgentService agentService, int id) =>
+        {
+            var agent = GetAgent(ctx);
+            var task = await boardService.GetTaskWithDetailsAsync(id);
+            if (task is null) return Results.NotFound();
+
+            var criteria = await boardService.GetAcceptanceCriteriaAsync(id);
+            if (criteria.Count == 0 || !criteria.All(c => c.IsMet))
+                return Results.Json(new { error = "Not all acceptance criteria are met" }, statusCode: 400);
+
+            var fromPhase = task.Phase;
+            await boardService.AddPhaseLogAsync(new TaskPhaseLog { TaskId = id, AgentId = agent.Id, FromPhase = fromPhase, ToPhase = TaskPhase.Completed, Reason = "Auto-accepted: all criteria met" });
+            task.Phase = TaskPhase.Completed;
+            task.ColumnId = 5; // Done
+            await boardService.UpdateTaskAsync(task);
+            await agentService.LogActivityAsync(agent.Id, "auto_accept", $"Auto-accepted task #{id}: all criteria met", id);
+            return Results.Ok(new { task.Id, task.Phase, task.ColumnId, from = fromPhase, to = TaskPhase.Completed });
+        });
+
         // --- Activity ---
         api.MapGet("/activity", async (HttpContext ctx, AgentService agentService, int? limit) =>
         {
@@ -347,3 +419,5 @@ public record CommentRequest(string Content, CommentType? Type);
 public record AdvanceRequest(TaskPhase TargetPhase, string? Reason);
 public record ApprovalRequest(string? Comment);
 public record RequestChangesRequest(string Comment);
+public record AddCriterionRequest(string Description, int? Order);
+public record UpdateCriterionRequest(bool IsMet);

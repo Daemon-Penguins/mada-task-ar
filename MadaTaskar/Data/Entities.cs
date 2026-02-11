@@ -40,6 +40,7 @@ public class TaskItem
     public List<TaskReference> References { get; set; } = new();
     public List<TaskPhaseLog> PhaseLogs { get; set; } = new();
     public List<TaskApproval> Approvals { get; set; } = new();
+    public List<AcceptanceCriterion> AcceptanceCriteria { get; set; } = new();
 }
 
 public class Agent
@@ -123,6 +124,20 @@ public enum TaskPhase { Research, Brainstorm, Triage, AuthorReview, ReadyToWork,
 public enum CommentType { Research, Proposal, Remark, Progress, General }
 
 public enum ApprovalDecision { Approve, Reject, RequestChanges }
+
+public class AcceptanceCriterion
+{
+    public int Id { get; set; }
+    public int TaskId { get; set; }
+    public TaskItem TaskItem { get; set; } = null!;
+    public string Description { get; set; } = string.Empty;
+    public bool IsMet { get; set; }
+    public int? CheckedByAgentId { get; set; }
+    public Agent? CheckedByAgent { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? CheckedAt { get; set; }
+    public int Order { get; set; }
+}
 
 public class User
 {

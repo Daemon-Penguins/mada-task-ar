@@ -1,7 +1,9 @@
 @using MudBlazor
 @using MadaTaskar.Data
+@using MadaTaskar.Services
 @using Microsoft.EntityFrameworkCore
 @inject IDbContextFactory<AppDbContext> DbFactory
+@inject BoardService BoardService
 
 <MudDialog Style="min-width: 600px;">
     <TitleContent>
@@ -151,6 +153,62 @@
                 </MudExpansionPanels>
             }
 
+            @* === Acceptance Criteria === *@
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2">
+                <strong>📋 Acceptance Criteria</strong>
+                @if (_criteria.Count > 0)
+                {
+                    var metCount = _criteria.Count(c => c.IsMet);
+                    <MudChip T="string" Size="Size.Small" Color="@(metCount == _criteria.Count ? Color.Success : Color.Warning)" Variant="Variant.Filled" Class="ml-2">
+                        @metCount/@_criteria.Count met
+                    </MudChip>
+                }
+            </MudText>
+
+            @if (_criteria.Count > 0 && _criteria.All(c => c.IsMet))
+            {
+                <MudAlert Severity="Severity.Success" Class="mb-2">All criteria met ✅</MudAlert>
+            }
+
+            @if (_criteria.Any())
+            {
+                @foreach (var c in _criteria.OrderBy(c => c.Order))
+                {
+                    <div class="d-flex align-center mb-1">
+                        <MudCheckBox T="bool" Value="@c.IsMet" Disabled="true"
+                                     Color="Color.Success" Dense="true" />
+                        <MudText Typo="Typo.body2" Class="ml-1">
+                            @c.Description
+                            @if (c.IsMet && c.CheckedByAgent != null)
+                            {
+                                <span style="color: var(--mud-palette-text-secondary);"> — checked by @c.CheckedByAgent.Name at @c.CheckedAt?.ToString("HH:mm")</span>
+                            }
+                        </MudText>
+                        @if (!IsLocked)
+                        {
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error"
+                                           OnClick="@(() => DeleteCriterion(c.Id))" Class="ml-auto" />
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">No acceptance criteria defined.</MudText>
+            }
+
+            @if (!IsLocked)
+            {
+                <div class="d-flex align-center gap-2 mt-2 mb-3">
+                    <MudTextField @bind-Value="_newCriterionText" Label="Add criterion" Variant="Variant.Outlined"
+                                  Dense="true" Class="flex-1"
+                                  OnKeyUp="@(async (e) => { if (e.Key == "Enter") await AddCriterion(); })" />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                               OnClick="AddCriterion" Disabled="@string.IsNullOrWhiteSpace(_newCriterionText)">+ Add</MudButton>
+                </div>
+            }
+
             @* === Comments (always visible) === *@
             <MudDivider Class="my-3" />
             <MudText Typo="Typo.subtitle1" Class="mb-2"><strong>Comments</strong></MudText>
@@ -215,6 +273,8 @@
     private List<Agent> _agents = new();
     private List<User> _users = new();
     private int? _selectedAssigneeAgentId;
+    private List<AcceptanceCriterion> _criteria = new();
+    private string _newCriterionText = string.Empty;
 
     private bool IsLocked => !IsNew && Task.Phase == TaskPhase.InProgress && Task.AssignedAgentId != null;
 
@@ -227,6 +287,9 @@
         // Set current assignee selection
         if (Task.AssignedAgentId.HasValue)
             _selectedAssigneeAgentId = Task.AssignedAgentId;
+
+        if (!IsNew)
+            _criteria = await BoardService.GetAcceptanceCriteriaAsync(Task.Id);
     }
 
     private void Submit()
@@ -256,6 +319,26 @@
         }
 
         MudDialog.Close(DialogResult.Ok(true));
+    }
+
+    private async Task AddCriterion()
+    {
+        if (string.IsNullOrWhiteSpace(_newCriterionText)) return;
+        var criterion = new AcceptanceCriterion
+        {
+            TaskId = Task.Id,
+            Description = _newCriterionText.Trim(),
+            Order = _criteria.Count
+        };
+        await BoardService.AddAcceptanceCriterionAsync(criterion);
+        _criteria = await BoardService.GetAcceptanceCriteriaAsync(Task.Id);
+        _newCriterionText = string.Empty;
+    }
+
+    private async Task DeleteCriterion(int criterionId)
+    {
+        await BoardService.DeleteAcceptanceCriterionAsync(criterionId);
+        _criteria = await BoardService.GetAcceptanceCriteriaAsync(Task.Id);
     }
 
     private void Cancel() => MudDialog.Cancel();

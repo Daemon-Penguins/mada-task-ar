@@ -90,6 +90,7 @@ public class BoardService
             .Include(t => t.References).ThenInclude(r => r.Agent)
             .Include(t => t.PhaseLogs).ThenInclude(l => l.Agent)
             .Include(t => t.Approvals).ThenInclude(a => a.Agent)
+            .Include(t => t.AcceptanceCriteria).ThenInclude(a => a.CheckedByAgent)
             .FirstOrDefaultAsync(t => t.Id == taskId);
     }
 
@@ -123,5 +124,43 @@ public class BoardService
         approval.CreatedAt = DateTime.UtcNow;
         db.TaskApprovals.Add(approval);
         await db.SaveChangesAsync();
+    }
+
+    public async Task AddAcceptanceCriterionAsync(AcceptanceCriterion criterion)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        criterion.CreatedAt = DateTime.UtcNow;
+        db.AcceptanceCriteria.Add(criterion);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task UpdateAcceptanceCriterionAsync(int criterionId, bool isMet, int? agentId)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        var criterion = await db.AcceptanceCriteria.FindAsync(criterionId);
+        if (criterion is null) return;
+        criterion.IsMet = isMet;
+        criterion.CheckedByAgentId = isMet ? agentId : null;
+        criterion.CheckedAt = isMet ? DateTime.UtcNow : null;
+        await db.SaveChangesAsync();
+    }
+
+    public async Task DeleteAcceptanceCriterionAsync(int criterionId)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        var criterion = await db.AcceptanceCriteria.FindAsync(criterionId);
+        if (criterion is null) return;
+        db.AcceptanceCriteria.Remove(criterion);
+        await db.SaveChangesAsync();
+    }
+
+    public async Task<List<AcceptanceCriterion>> GetAcceptanceCriteriaAsync(int taskId)
+    {
+        using var db = await _factory.CreateDbContextAsync();
+        return await db.AcceptanceCriteria
+            .Where(ac => ac.TaskId == taskId)
+            .Include(ac => ac.CheckedByAgent)
+            .OrderBy(ac => ac.Order)
+            .ToListAsync();
     }
 }
