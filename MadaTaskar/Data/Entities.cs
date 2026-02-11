@@ -52,8 +52,22 @@ public class Agent
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; }
     public DateTime? LastSeenAt { get; set; }
+    public List<AgentBadge> Badges { get; set; } = new();
 
     public bool HasRole(string role) => Roles.Split(',').Contains(role, StringComparer.OrdinalIgnoreCase);
+}
+
+public class AgentBadge
+{
+    public int Id { get; set; }
+    public int AgentId { get; set; }
+    public Agent Agent { get; set; } = null!;
+    public string Badge { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string Emoji { get; set; } = string.Empty;
+    public string? TaskTitle { get; set; }
+    public int? TaskId { get; set; }
+    public DateTime EarnedAt { get; set; }
 }
 
 public class AgentActivity

@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<TaskPhaseLog> TaskPhaseLogs => Set<TaskPhaseLog>();
     public DbSet<TaskApproval> TaskApprovals => Set<TaskApproval>();
     public DbSet<AcceptanceCriterion> AcceptanceCriteria => Set<AcceptanceCriterion>();
+    public DbSet<AgentBadge> AgentBadges => Set<AgentBadge>();
     public DbSet<User> Users => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -32,6 +33,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<TaskApproval>().HasIndex(a => a.TaskId);
 
         modelBuilder.Entity<AcceptanceCriterion>().HasIndex(ac => ac.TaskId);
+
+        modelBuilder.Entity<AgentBadge>().HasIndex(b => b.AgentId);
 
         modelBuilder.Entity<User>().HasIndex(u => u.Username).IsUnique();
         modelBuilder.Entity<User>().HasData(new User

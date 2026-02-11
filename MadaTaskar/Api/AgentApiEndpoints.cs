@@ -1,5 +1,6 @@
 using MadaTaskar.Data;
 using MadaTaskar.Services;
+using Microsoft.EntityFrameworkCore;
 
 namespace MadaTaskar.Api;
 
@@ -183,7 +184,7 @@ public static class AgentApiEndpoints
             return Results.Ok(new { currentPhase = task.Phase.ToString(), availableTransitions = transitions });
         });
 
-        api.MapPost("/tasks/{id:int}/advance", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, PermissionService perms, int id, AdvancePhaseRequest req) =>
+        api.MapPost("/tasks/{id:int}/advance", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, PermissionService perms, RewardService rewardService, int id, AdvancePhaseRequest req) =>
         {
             var agent = GetAgent(ctx);
             var task = await boardService.GetTaskWithDetailsAsync(id);
@@ -217,13 +218,37 @@ public static class AgentApiEndpoints
             });
             await agentService.LogActivityAsync(agent.Id, "advance_phase", $"{fromPhase} → {req.TargetPhase}: {result.Message}", id);
 
+            // Award badges when completing
+            object[]? badgesAwarded = null;
+            if (req.TargetPhase == TaskPhase.Completed)
+            {
+                var freshTask = await boardService.GetTaskWithDetailsAsync(id);
+                if (freshTask != null)
+                {
+                    var badges = await rewardService.AwardBadgesForCompletion(freshTask);
+                    if (badges.Count > 0)
+                    {
+                        // Need agent names - load them
+                        using var scope = ctx.RequestServices.CreateScope();
+                        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
+                        using var db = await factory.CreateDbContextAsync();
+                        badgesAwarded = badges.Select(b =>
+                        {
+                            var agentName = db.Agents.Find(b.AgentId)?.Name ?? "Unknown";
+                            return (object)new { agent = agentName, badge = b.Name, emoji = b.Emoji };
+                        }).ToArray();
+                    }
+                }
+            }
+
             return Results.Ok(new
             {
                 taskId = id,
                 from = fromPhase.ToString(),
                 to = req.TargetPhase.ToString(),
                 message = result.Message,
-                columnId = task.ColumnId
+                columnId = task.ColumnId,
+                badgesAwarded
             });
         });
 
@@ -425,6 +450,73 @@ public static class AgentApiEndpoints
             }));
         });
 
+        // --- Retrospective ---
+        api.MapGet("/tasks/{id:int}/retrospective", async (HttpContext ctx, BoardService boardService, int id) =>
+        {
+            var task = await boardService.GetTaskWithDetailsAsync(id);
+            if (task is null) return Results.NotFound();
+
+            var phases = new List<object>();
+            var phaseLogs = task.PhaseLogs.OrderBy(p => p.CreatedAt).ToList();
+            for (int i = 0; i < phaseLogs.Count; i++)
+            {
+                var log = phaseLogs[i];
+                var nextTime = i + 1 < phaseLogs.Count ? phaseLogs[i + 1].CreatedAt : DateTime.UtcNow;
+                var duration = nextTime - log.CreatedAt;
+                phases.Add(new { phase = log.ToPhase.ToString(), duration = FormatDuration(duration), agent = log.Agent.Name });
+            }
+
+            var totalDuration = phaseLogs.Count > 0 ? DateTime.UtcNow - phaseLogs.First().CreatedAt : TimeSpan.Zero;
+
+            var contributors = new HashSet<string>();
+            foreach (var p in task.PhaseLogs) contributors.Add(p.Agent.Name);
+            foreach (var c in task.Comments) contributors.Add(c.Agent.Name);
+            foreach (var a in task.Approvals) contributors.Add(a.Agent.Name);
+            foreach (var ac in task.AcceptanceCriteria.Where(x => x.CheckedByAgent != null)) contributors.Add(ac.CheckedByAgent!.Name);
+
+            var rejectsCount = task.Approvals.Count(a => a.Decision == ApprovalDecision.Reject);
+            var requestChangesCount = task.Approvals.Count(a => a.Decision == ApprovalDecision.RequestChanges);
+            var criteriaMet = task.AcceptanceCriteria.Count(c => c.IsMet);
+            var criteriaTotal = task.AcceptanceCriteria.Count;
+
+            return Results.Ok(new
+            {
+                taskId = task.Id,
+                title = task.Title,
+                totalDuration = FormatDuration(totalDuration),
+                phases,
+                researchReferences = task.References.Select(r => new { r.Id, r.Url, r.Title, r.Summary, r.CreatedAt, agent = r.Agent.Name }),
+                proposals = task.Comments.Where(c => c.Type == CommentType.Proposal).Select(c => new { c.Id, c.Content, c.CreatedAt, agent = c.Agent.Name }),
+                acceptanceCriteria = task.AcceptanceCriteria.Select(c => new { c.Description, met = c.IsMet, checkedBy = c.CheckedByAgent?.Name }),
+                approvals = task.Approvals.Select(a => new { a.Decision, a.Comment, a.CreatedAt, agent = a.Agent.Name }),
+                comments = task.Comments.Select(c => new { c.Id, c.Content, c.Type, c.CreatedAt, agent = c.Agent.Name }),
+                contributors = contributors.ToList(),
+                phaseTransitions = task.PhaseLogs.Select(p => new { from = p.FromPhase?.ToString(), to = p.ToPhase.ToString(), p.Reason, p.CreatedAt, agent = p.Agent.Name }),
+                lessonsLearned = new
+                {
+                    totalPhaseChanges = task.PhaseLogs.Count,
+                    rejectsCount,
+                    requestChangesCount,
+                    firstTimeRight = rejectsCount == 0 && requestChangesCount == 0,
+                    criteriaMet = $"{criteriaMet}/{criteriaTotal}"
+                }
+            });
+        });
+
+        // --- Badges ---
+        api.MapGet("/agents/{id:int}/badges", async (HttpContext ctx, RewardService rewardService, int id) =>
+        {
+            var badges = await rewardService.GetBadgesForAgent(id);
+            return Results.Ok(badges.Select(b => new { b.Id, b.Badge, b.Name, b.Emoji, b.TaskTitle, b.TaskId, b.EarnedAt }));
+        });
+
+        api.MapGet("/me/badges", async (HttpContext ctx, RewardService rewardService) =>
+        {
+            var agent = GetAgent(ctx);
+            var badges = await rewardService.GetBadgesForAgent(agent.Id);
+            return Results.Ok(badges.Select(b => new { b.Id, b.Badge, b.Name, b.Emoji, b.TaskTitle, b.TaskId, b.EarnedAt }));
+        });
+
         // --- Who am I ---
         api.MapGet("/me", (HttpContext ctx) =>
         {
@@ -434,6 +526,13 @@ public static class AgentApiEndpoints
     }
 
     private static Agent GetAgent(HttpContext ctx) => (Agent)ctx.Items["Agent"]!;
+
+    private static string FormatDuration(TimeSpan ts)
+    {
+        if (ts.TotalDays >= 1) return $"{(int)ts.TotalDays}d {ts.Hours}h {ts.Minutes}m";
+        if (ts.TotalHours >= 1) return $"{(int)ts.TotalHours}h {ts.Minutes}m";
+        return $"{(int)ts.TotalMinutes}m";
+    }
 }
 
 // --- Auth Filter ---

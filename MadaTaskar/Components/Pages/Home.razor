@@ -102,6 +102,14 @@ else
         if (info.Item is null) return;
 
         var newColumnId = int.Parse(info.DropzoneIdentifier);
+
+        // Check if moved to Done column
+        if (newColumnId == 5 && info.Item.ColumnId != 5)
+        {
+            var contributors = info.Item.Assignee ?? "Team";
+            await JS.InvokeVoidAsync("victoryCelebration", info.Item.Title, contributors);
+        }
+
         info.Item.ColumnId = newColumnId;
         info.Item.Order = info.IndexInZone;
 
@@ -177,6 +185,12 @@ else
             else
             {
                 await BoardService.UpdateTaskAsync(editTask);
+                // Victory celebration if moved to Done
+                if (editTask.ColumnId == 5)
+                {
+                    await JS.InvokeVoidAsync("victoryCelebration", editTask.Title, editTask.Assignee ?? "Team");
+                    await Task.Delay(500);
+                }
             }
             await LoadBoard();
         }

@@ -21,6 +21,7 @@ builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddSingleton<PermissionService>();
 builder.Services.AddSingleton<TaskStateMachine>();
+builder.Services.AddScoped<RewardService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
