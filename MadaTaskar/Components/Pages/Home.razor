@@ -127,16 +127,27 @@ else
 
     private async Task EditTask(TaskItem task)
     {
-        // Clone to avoid modifying the original before save
+        // Load full task with details
+        var fullTask = await BoardService.GetTaskWithDetailsAsync(task.Id);
+        if (fullTask is null) return;
+
         var editTask = new TaskItem
         {
-            Id = task.Id,
-            Title = task.Title,
-            Description = task.Description,
-            Assignee = task.Assignee,
-            Priority = task.Priority,
-            ColumnId = task.ColumnId,
-            Order = task.Order
+            Id = fullTask.Id,
+            Title = fullTask.Title,
+            Description = fullTask.Description,
+            Assignee = fullTask.Assignee,
+            AssignedAgentId = fullTask.AssignedAgentId,
+            Priority = fullTask.Priority,
+            ColumnId = fullTask.ColumnId,
+            Order = fullTask.Order,
+            Phase = fullTask.Phase,
+            AuthorAgentId = fullTask.AuthorAgentId,
+            ReadyToWorkChecked = fullTask.ReadyToWorkChecked,
+            Comments = fullTask.Comments,
+            References = fullTask.References,
+            PhaseLogs = fullTask.PhaseLogs,
+            Approvals = fullTask.Approvals
         };
 
         var parameters = new DialogParameters<TaskDialog>

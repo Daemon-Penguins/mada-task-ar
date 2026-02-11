@@ -1,39 +1,206 @@
 @using MudBlazor
+@using MadaTaskar.Data
+@using Microsoft.EntityFrameworkCore
+@inject IDbContextFactory<AppDbContext> DbFactory
 
-<MudDialog>
+<MudDialog Style="min-width: 600px;">
     <TitleContent>
-        <MudText Typo="Typo.h6">
-            <MudIcon Icon="@(IsNew ? Icons.Material.Filled.Add : Icons.Material.Filled.Edit)" Class="mr-2" />
-            @(IsNew ? "New Task" : "Edit Task")
-        </MudText>
+        <div class="d-flex align-center gap-2">
+            <MudIcon Icon="@(IsNew ? Icons.Material.Filled.Add : Icons.Material.Filled.Assignment)" />
+            <MudText Typo="Typo.h6">@(IsNew ? "New Task" : Task.Title)</MudText>
+            @if (!IsNew)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Filled">@Task.Phase</MudChip>
+            }
+        </div>
     </TitleContent>
     <DialogContent>
-        <MudTextField @bind-Value="Task.Title" Label="Title" Required="true" Class="mb-3" />
-        <MudTextField @bind-Value="Task.Description" Label="Description" Lines="3" Class="mb-3" />
-        <MudTextField @bind-Value="Task.Assignee" Label="Assignee" Class="mb-3" />
-        <MudSelect @bind-Value="Task.Priority" Label="Priority" Class="mb-3">
-            @foreach (Priority p in Enum.GetValues<Priority>())
-            {
-                <MudSelectItem Value="@p">@p</MudSelectItem>
-            }
-        </MudSelect>
-        <MudSelect @bind-Value="Task.ColumnId" Label="Column" Class="mb-3">
+        @if (IsLocked)
+        {
+            <MudAlert Severity="Severity.Info" Class="mb-4" Icon="@Icons.Material.Filled.Lock">
+                Task is in progress — assigned to <strong>@Task.Assignee</strong>. Waiting for outcome.
+            </MudAlert>
+        }
+
+        @* === Core Fields === *@
+        <MudTextField @bind-Value="Task.Title" Label="Title" Required="true" Class="mb-3" 
+                      ReadOnly="@IsLocked" />
+        <MudTextField @bind-Value="Task.Description" Label="Description" Lines="3" Class="mb-3" 
+                      ReadOnly="@IsLocked" />
+        
+        <div class="d-flex gap-3 mb-3">
+            <MudSelect T="int?" @bind-Value="_selectedAssigneeAgentId" Label="Assign to (Agent)" 
+                       Class="flex-1" Disabled="@IsLocked" Clearable="true"
+                       AnchorOrigin="Origin.BottomCenter">
+                <MudSelectItem T="int?" Value="@((int?)null)">— Unassigned —</MudSelectItem>
+                @foreach (var agent in _agents)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)agent.Id)">🤖 @agent.Name (@agent.Roles)</MudSelectItem>
+                }
+                @foreach (var user in _users)
+                {
+                    <MudSelectItem T="int?" Value="@((int?)(user.Id + 10000))">👤 @user.DisplayName</MudSelectItem>
+                }
+            </MudSelect>
+            
+            <MudSelect @bind-Value="Task.Priority" Label="Priority" Class="flex-1" Disabled="@IsLocked">
+                @foreach (Priority p in Enum.GetValues<Priority>())
+                {
+                    <MudSelectItem Value="@p">@p</MudSelectItem>
+                }
+            </MudSelect>
+        </div>
+        
+        <MudSelect @bind-Value="Task.ColumnId" Label="Column" Class="mb-3" Disabled="@IsLocked">
             @foreach (var col in Columns)
             {
                 <MudSelectItem Value="@col.Id">@col.Name</MudSelectItem>
             }
         </MudSelect>
+
+        @if (!IsNew)
+        {
+            <MudDivider Class="my-4" />
+
+            @* === Pipeline Phase Section === *@
+            <MudText Typo="Typo.subtitle1" Class="mb-2"><strong>Pipeline</strong></MudText>
+            
+            <div class="d-flex gap-1 mb-3 flex-wrap">
+                @foreach (TaskPhase phase in Enum.GetValues<TaskPhase>())
+                {
+                    var color = phase == Task.Phase ? Color.Primary : 
+                                (int)phase < (int)Task.Phase ? Color.Success : Color.Default;
+                    var variant = phase == Task.Phase ? Variant.Filled : Variant.Outlined;
+                    <MudChip T="string" Size="Size.Small" Color="@color" Variant="@variant">@phase</MudChip>
+                }
+            </div>
+
+            @* === Research Phase: show references === *@
+            @if (Task.Phase == TaskPhase.Research || Task.References?.Any() == true)
+            {
+                <MudExpansionPanels Class="mb-3" Elevation="0">
+                    <MudExpansionPanel Text="@($"🔍 Research References ({Task.References?.Count ?? 0})")" IsInitiallyExpanded="@(Task.Phase == TaskPhase.Research)">
+                        @if (Task.References?.Any() == true)
+                        {
+                            @foreach (var r in Task.References)
+                            {
+                                <MudCard Elevation="0" Outlined="true" Class="mb-2 pa-2">
+                                    <MudLink Href="@r.Url" Target="_blank">@r.Title</MudLink>
+                                    @if (!string.IsNullOrEmpty(r.Summary))
+                                    {
+                                        <MudText Typo="Typo.body2" Style="color: var(--mud-palette-text-secondary);">@r.Summary</MudText>
+                                    }
+                                </MudCard>
+                            }
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">No references yet. Agents will add research here.</MudText>
+                        }
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+
+            @* === Brainstorm/Triage: show proposals === *@
+            @if (Task.Phase == TaskPhase.Brainstorm || Task.Phase == TaskPhase.Triage || Task.Comments?.Any(c => c.Type == CommentType.Proposal) == true)
+            {
+                <MudExpansionPanels Class="mb-3" Elevation="0">
+                    <MudExpansionPanel Text="@($"🧠 Proposals ({Task.Comments?.Count(c => c.Type == CommentType.Proposal) ?? 0})")" IsInitiallyExpanded="@(Task.Phase == TaskPhase.Brainstorm || Task.Phase == TaskPhase.Triage)">
+                        @if (Task.Comments?.Where(c => c.Type == CommentType.Proposal).Any() == true)
+                        {
+                            @foreach (var p in Task.Comments!.Where(c => c.Type == CommentType.Proposal))
+                            {
+                                <MudCard Elevation="0" Outlined="true" Class="mb-2 pa-2">
+                                    <MudText Typo="Typo.caption"><strong>@p.Agent?.Name</strong> — @p.CreatedAt.ToString("g")</MudText>
+                                    <MudText Typo="Typo.body2">@p.Content</MudText>
+                                </MudCard>
+                            }
+                        }
+                        else
+                        {
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">No proposals yet.</MudText>
+                        }
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+
+            @* === ReadyToWork checkbox === *@
+            @if (Task.Phase == TaskPhase.AuthorReview || Task.Phase == TaskPhase.ReadyToWork)
+            {
+                <MudCheckBox @bind-Value="Task.ReadyToWorkChecked" Label="✅ Ready to work — reviewed and approved" 
+                             Color="Color.Success" Class="mb-3" Disabled="@IsLocked" />
+            }
+
+            @* === Approvals === *@
+            @if (Task.Approvals?.Any() == true)
+            {
+                <MudExpansionPanels Class="mb-3" Elevation="0">
+                    <MudExpansionPanel Text="@($"📋 Approvals ({Task.Approvals.Count})")">
+                        @foreach (var a in Task.Approvals.OrderByDescending(x => x.CreatedAt))
+                        {
+                            var icon = a.Decision == ApprovalDecision.Approve ? "✅" : a.Decision == ApprovalDecision.Reject ? "❌" : "🔄";
+                            <MudCard Elevation="0" Outlined="true" Class="mb-2 pa-2">
+                                <MudText Typo="Typo.caption">@icon <strong>@a.Agent?.Name</strong> — @a.Decision — @a.CreatedAt.ToString("g")</MudText>
+                                @if (!string.IsNullOrEmpty(a.Comment))
+                                {
+                                    <MudText Typo="Typo.body2">@a.Comment</MudText>
+                                }
+                            </MudCard>
+                        }
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+
+            @* === Comments (always visible) === *@
+            <MudDivider Class="my-3" />
+            <MudText Typo="Typo.subtitle1" Class="mb-2"><strong>Comments</strong></MudText>
+
+            @if (Task.Comments?.Where(c => c.Type != CommentType.Proposal).Any() == true)
+            {
+                @foreach (var c in Task.Comments!.Where(c => c.Type != CommentType.Proposal).OrderByDescending(x => x.CreatedAt))
+                {
+                    var typeIcon = c.Type switch { CommentType.Research => "🔍", CommentType.Progress => "📈", CommentType.Remark => "💬", _ => "💬" };
+                    <MudCard Elevation="0" Outlined="true" Class="mb-2 pa-2">
+                        <MudText Typo="Typo.caption">@typeIcon <strong>@c.Agent?.Name</strong> — @c.CreatedAt.ToString("g")</MudText>
+                        <MudText Typo="Typo.body2">@c.Content</MudText>
+                    </MudCard>
+                }
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary mb-2">No comments yet.</MudText>
+            }
+
+            @* === Phase Log (collapsed) === *@
+            @if (Task.PhaseLogs?.Any() == true)
+            {
+                <MudExpansionPanels Class="mt-3" Elevation="0">
+                    <MudExpansionPanel Text="@($"📜 Phase History ({Task.PhaseLogs.Count})")">
+                        @foreach (var log in Task.PhaseLogs.OrderByDescending(x => x.CreatedAt))
+                        {
+                            <MudText Typo="Typo.body2">
+                                @log.CreatedAt.ToString("g") — <strong>@log.Agent?.Name</strong>: @log.FromPhase → @log.ToPhase
+                                @if (!string.IsNullOrEmpty(log.Reason)) { <span> — @log.Reason</span> }
+                            </MudText>
+                        }
+                    </MudExpansionPanel>
+                </MudExpansionPanels>
+            }
+        }
     </DialogContent>
     <DialogActions>
-        @if (!IsNew)
+        @if (!IsNew && !IsLocked)
         {
             <MudButton Color="Color.Error" Variant="Variant.Text" OnClick="Delete" Class="mr-auto">Delete</MudButton>
         }
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
-                   Disabled="@string.IsNullOrWhiteSpace(Task.Title)">
-            @(IsNew ? "Create" : "Save")
-        </MudButton>
+        @if (!IsLocked)
+        {
+            <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                       Disabled="@string.IsNullOrWhiteSpace(Task.Title)">
+                @(IsNew ? "Create" : "Save")
+            </MudButton>
+        }
     </DialogActions>
 </MudDialog>
 
@@ -41,16 +208,56 @@
     [CascadingParameter]
     private IMudDialogInstance MudDialog { get; set; } = null!;
 
-    [Parameter]
-    public TaskItem Task { get; set; } = new();
+    [Parameter] public TaskItem Task { get; set; } = new();
+    [Parameter] public List<Column> Columns { get; set; } = new();
+    [Parameter] public bool IsNew { get; set; }
 
-    [Parameter]
-    public List<Column> Columns { get; set; } = new();
+    private List<Agent> _agents = new();
+    private List<User> _users = new();
+    private int? _selectedAssigneeAgentId;
 
-    [Parameter]
-    public bool IsNew { get; set; }
+    private bool IsLocked => !IsNew && Task.Phase == TaskPhase.InProgress && Task.AssignedAgentId != null;
 
-    private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+    protected override async Task OnInitializedAsync()
+    {
+        using var db = await DbFactory.CreateDbContextAsync();
+        _agents = await db.Agents.Where(a => a.IsActive).OrderBy(a => a.Name).ToListAsync();
+        _users = await db.Users.OrderBy(u => u.DisplayName).ToListAsync();
+
+        // Set current assignee selection
+        if (Task.AssignedAgentId.HasValue)
+            _selectedAssigneeAgentId = Task.AssignedAgentId;
+    }
+
+    private void Submit()
+    {
+        // Map assignee selection back
+        if (_selectedAssigneeAgentId.HasValue)
+        {
+            if (_selectedAssigneeAgentId.Value >= 10000)
+            {
+                // It's a user
+                var user = _users.FirstOrDefault(u => u.Id == _selectedAssigneeAgentId.Value - 10000);
+                Task.Assignee = user?.DisplayName;
+                Task.AssignedAgentId = null;
+            }
+            else
+            {
+                // It's an agent
+                var agent = _agents.FirstOrDefault(a => a.Id == _selectedAssigneeAgentId.Value);
+                Task.Assignee = agent?.Name;
+                Task.AssignedAgentId = agent?.Id;
+            }
+        }
+        else
+        {
+            Task.Assignee = null;
+            Task.AssignedAgentId = null;
+        }
+
+        MudDialog.Close(DialogResult.Ok(true));
+    }
+
     private void Cancel() => MudDialog.Cancel();
     private void Delete() => MudDialog.Close(DialogResult.Ok("delete"));
 }
