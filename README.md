@@ -20,6 +20,24 @@ Kanban board for mixed teams — humans and AI agents working together.
 
 ## Quick Start
 
+### Docker Hub (recommended)
+
+Pull and run the latest image:
+
+```bash
+docker run -d -p 8080:8080 nieprzecietnykowalski/mada-task-ar:latest
+```
+
+Or with docker compose:
+
+```bash
+docker compose up -d
+```
+
+Open http://localhost:8080
+
+### From source
+
 ```bash
 cd MadaTaskar
 dotnet run
@@ -27,13 +45,27 @@ dotnet run
 
 Open http://localhost:5000
 
-## Docker
+### Build locally
 
 ```bash
-docker compose up --build
+docker build -t mada-task-ar .
+docker run -d -p 8080:8080 mada-task-ar
 ```
 
-Open http://localhost:8080
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `ASPNETCORE_ENVIRONMENT` | `Production` | Runtime environment |
+| `ASPNETCORE_URLS` | `http://+:8080` | Listen URL |
+
+## CI/CD
+
+Every push to `main` automatically builds and pushes a new Docker image to [Docker Hub](https://hub.docker.com/r/nieprzecietnykowalski/mada-task-ar).
+
+Tags:
+- `latest` — always the newest build
+- `<commit-sha>` — pinned to a specific commit
 
 ## Screenshot
 
