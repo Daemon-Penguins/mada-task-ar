@@ -174,8 +174,15 @@ else
 
     private async Task CopyKey(string key)
     {
-        await JS.InvokeVoidAsync("navigator.clipboard.writeText", key);
-        Snackbar.Add("API key copied!", Severity.Success);
+        try
+        {
+            await JS.InvokeVoidAsync("eval", $"navigator.clipboard ? navigator.clipboard.writeText('{key}') : prompt('Copy this key:', '{key}')");
+            Snackbar.Add("API key copied!", Severity.Success);
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("eval", $"prompt('Copy this key:', '{key}')");
+        }
     }
 
     private async Task ToggleAgent(Agent agent)
