@@ -60,7 +60,7 @@ public class AgentManagementTests
         var workerKey = workerResult.GetProperty("apiKey").GetString()!;
 
         // Try to register with the worker agent
-        using var workerApi = new ApiClient(TestFixture.Factory.CreateClient(), workerKey);
+        using var workerApi = new ApiClient(new HttpClient { BaseAddress = new Uri(TestFixture.BaseUrl) }, workerKey);
         await workerApi.RegisterAgent("ShouldFail", "admin");
 
         // Should be forbidden

@@ -1,37 +1,84 @@
+using System.Diagnostics;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
+using MadaTaskar.Tests.Support;
 using Microsoft.Playwright;
 
-namespace MadaTaskar.Tests.Support;
+namespace MadaTaskar.Tests;
 
 /// <summary>
-/// Manages the test web application and Playwright browser lifecycle.
-/// Starts the app on a random port and provides a headless Chromium browser.
+/// Starts the real app as a subprocess and launches Playwright.
 /// </summary>
 [SetUpFixture]
 public class TestFixture
 {
-    public static WebApplicationFactory<Program> Factory { get; private set; } = null!;
     public static HttpClient HttpClient { get; private set; } = null!;
     public static string BaseUrl { get; private set; } = null!;
     public static IPlaywright PlaywrightInstance { get; private set; } = null!;
     public static IBrowser Browser { get; private set; } = null!;
+    private static Process? _appProcess;
+
+    private static readonly int Port = Random.Shared.Next(15000, 16000);
 
     [OneTimeSetUp]
     public async Task GlobalSetup()
     {
-        // Start the application using WebApplicationFactory
-        Factory = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder =>
+        BaseUrl = $"http://127.0.0.1:{Port}";
+
+        // Find the built DLL
+        var testDir = AppContext.BaseDirectory; // e.g. .../bin/Release/net9.0/
+        var projectRoot = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", ".."));
+        var appDll = Path.Combine(projectRoot, "MadaTaskar", "bin", "Release", "net9.0", "MadaTaskar.dll");
+
+        if (!File.Exists(appDll))
+        {
+            // Try Debug
+            appDll = Path.Combine(projectRoot, "MadaTaskar", "bin", "Debug", "net9.0", "MadaTaskar.dll");
+        }
+
+        if (!File.Exists(appDll))
+            throw new FileNotFoundException($"Cannot find MadaTaskar.dll. Looked in: {appDll}");
+
+        // Start app process
+        _appProcess = new Process
+        {
+            StartInfo = new ProcessStartInfo
             {
-                builder.UseUrls("http://127.0.0.1:0"); // random port
-            });
+                FileName = "dotnet",
+                Arguments = $"\"{appDll}\" --urls {BaseUrl}",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                WorkingDirectory = projectRoot,
+                Environment =
+                {
+                    ["ASPNETCORE_ENVIRONMENT"] = "Development"
+                }
+            }
+        };
+        _appProcess.Start();
 
-        HttpClient = Factory.CreateClient();
-        BaseUrl = Factory.Server.BaseAddress.ToString().TrimEnd('/');
+        // Wait for server to be ready
+        HttpClient = new HttpClient { BaseAddress = new Uri(BaseUrl) };
+        var ready = false;
+        for (int i = 0; i < 50; i++)
+        {
+            try
+            {
+                var resp = await HttpClient.GetAsync("/api/me");
+                ready = true;
+                break;
+            }
+            catch { await Task.Delay(200); }
+        }
 
-        // Seed the test agent via direct DB access
+        if (!ready)
+        {
+            var stderr = _appProcess.StandardError.ReadToEnd();
+            var stdout = _appProcess.StandardOutput.ReadToEnd();
+            throw new Exception($"App failed to start.\nSTDOUT: {stdout}\nSTDERR: {stderr}");
+        }
+
+        // Seed test agent
         await SeedTestData();
 
         // Start Playwright
@@ -40,30 +87,41 @@ public class TestFixture
         {
             Headless = true
         });
+
+        Console.WriteLine($"✅ Test server at {BaseUrl}, Playwright ready");
     }
 
     private async Task SeedTestData()
     {
-        // Create test agent "TestBot" with known API key using the existing Rico agent
-        // Rico is seeded by default with key "penguin-rico-key-change-me"
-        // We also register a TestBot agent via API
-        var client = Factory.CreateClient();
-        client.DefaultRequestHeaders.Add("X-Agent-Key", TestData.RicoApiKey);
-
-        var response = await client.PostAsJsonAsync("/api/agents/register", new
+        try
         {
-            Name = "TestBot",
-            Roles = "admin,worker,researcher,reviewer"
-        });
+            using var client = new HttpClient { BaseAddress = new Uri(BaseUrl) };
+            client.DefaultRequestHeaders.Add("X-Agent-Key", TestData.RicoApiKey);
 
-        if (response.IsSuccessStatusCode)
-        {
-            var result = await response.Content.ReadFromJsonAsync<TestAgentResponse>();
-            if (result != null)
+            var response = await client.PostAsJsonAsync("/api/agents/register", new
             {
-                TestData.TestBotApiKey = result.ApiKey;
-                TestData.TestBotId = result.Id;
+                Name = "TestBot",
+                Roles = "admin,worker,researcher,reviewer"
+            });
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<TestAgentResponse>();
+                if (result != null)
+                {
+                    TestData.TestBotApiKey = result.ApiKey;
+                    TestData.TestBotId = result.Id;
+                    Console.WriteLine($"✅ TestBot seeded: id={result.Id}, key={result.ApiKey}");
+                }
             }
+            else
+            {
+                Console.WriteLine($"⚠️ Failed to seed TestBot: {response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Seed error: {ex.Message}");
         }
     }
 
@@ -73,14 +131,17 @@ public class TestFixture
         if (Browser != null) await Browser.CloseAsync();
         PlaywrightInstance?.Dispose();
         HttpClient?.Dispose();
-        Factory?.Dispose();
+        if (_appProcess is { HasExited: false })
+        {
+            _appProcess.Kill(entireProcessTree: true);
+            _appProcess.Dispose();
+        }
     }
 
-    /// <summary>
-    /// Creates a new browser context (isolated cookies/storage) for a test.
-    /// </summary>
     public static async Task<IBrowserContext> NewContextAsync()
     {
+        if (Browser == null)
+            throw new InvalidOperationException("Browser not initialized. Check GlobalSetup output.");
         return await Browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true,

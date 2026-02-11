@@ -29,19 +29,19 @@ public class ApiClient : IDisposable
 
     public static ApiClient WithTestBot()
     {
-        var client = TestFixture.Factory.CreateClient();
+        var client = new HttpClient { BaseAddress = new Uri(TestFixture.BaseUrl) };
         return new ApiClient(client, TestData.TestBotApiKey);
     }
 
     public static ApiClient WithRico()
     {
-        var client = TestFixture.Factory.CreateClient();
+        var client = new HttpClient { BaseAddress = new Uri(TestFixture.BaseUrl) };
         return new ApiClient(client, TestData.RicoApiKey);
     }
 
     public static ApiClient WithInvalidKey()
     {
-        var client = TestFixture.Factory.CreateClient();
+        var client = new HttpClient { BaseAddress = new Uri(TestFixture.BaseUrl) };
         return new ApiClient(client, "invalid-key-does-not-exist");
     }
 
