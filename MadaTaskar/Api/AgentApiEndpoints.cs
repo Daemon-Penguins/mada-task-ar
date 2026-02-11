@@ -160,36 +160,79 @@ public static class AgentApiEndpoints
             return Results.Ok(new { comment.Id, comment.Content, comment.Type, comment.CreatedAt });
         });
 
-        api.MapPost("/tasks/{id:int}/advance", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, int id, AdvanceRequest req) =>
+        api.MapGet("/tasks/{id:int}/transitions", async (HttpContext ctx, BoardService boardService, TaskStateMachine stateMachine, int id) =>
         {
             var agent = GetAgent(ctx);
             var task = await boardService.GetTaskWithDetailsAsync(id);
             if (task is null) return Results.NotFound();
 
-            if (!perms.CanAdvancePhase(agent, task, req.TargetPhase))
-                return Results.Json(new { error = "Forbidden", message = $"Cannot advance from {task.Phase} to {req.TargetPhase}" }, statusCode: 403);
+            var possibleTargets = stateMachine.GetAllowedTransitions(task.Phase);
+            var transitions = possibleTargets.Select(target =>
+            {
+                var result = stateMachine.TryTransition(task, target, agent);
+                var info = stateMachine.GetTransitionInfo(task.Phase, target);
+                return new
+                {
+                    targetPhase = target.ToString(),
+                    description = info?.Description ?? "",
+                    allowed = result.Success,
+                    reason = result.Success ? (string?)null : result.Message
+                };
+            });
 
-            var fromPhase = task.Phase;
-            var log = new TaskPhaseLog { TaskId = id, AgentId = agent.Id, FromPhase = fromPhase, ToPhase = req.TargetPhase, Reason = req.Reason };
-            await boardService.AddPhaseLogAsync(log);
-
-            // Update task phase and column
-            task.Phase = req.TargetPhase;
-            if (PermissionService.PhaseColumnMap.TryGetValue(req.TargetPhase, out var col))
-                task.ColumnId = col;
-            await boardService.UpdateTaskAsync(task);
-
-            await agentService.LogActivityAsync(agent.Id, "advance_phase", $"Advanced task #{id} from {fromPhase} to {req.TargetPhase}", id);
-            return Results.Ok(new { task.Id, task.Phase, task.ColumnId, from = fromPhase, to = req.TargetPhase });
+            return Results.Ok(new { currentPhase = task.Phase.ToString(), availableTransitions = transitions });
         });
 
-        api.MapPost("/tasks/{id:int}/approve", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, int id, ApprovalRequest? req) =>
+        api.MapPost("/tasks/{id:int}/advance", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, PermissionService perms, int id, AdvancePhaseRequest req) =>
+        {
+            var agent = GetAgent(ctx);
+            var task = await boardService.GetTaskWithDetailsAsync(id);
+            if (task is null) return Results.NotFound(new { error = $"Task #{id} not found." });
+
+            var result = stateMachine.TryTransition(task, req.TargetPhase, agent);
+            if (!result.Success)
+                return Results.BadRequest(new { error = result.Message, currentPhase = task.Phase.ToString() });
+
+            var fromPhase = task.Phase;
+            task.Phase = req.TargetPhase;
+
+            var columnMap = new Dictionary<TaskPhase, int>
+            {
+                [TaskPhase.Research] = 2, [TaskPhase.Brainstorm] = 2, [TaskPhase.Triage] = 2,
+                [TaskPhase.AuthorReview] = 4, [TaskPhase.ReadyToWork] = 2,
+                [TaskPhase.InProgress] = 3, [TaskPhase.Acceptance] = 4,
+                [TaskPhase.Completed] = 5, [TaskPhase.Killed] = 6
+            };
+            if (columnMap.TryGetValue(req.TargetPhase, out var colId))
+                task.ColumnId = colId;
+
+            task.UpdatedAt = DateTime.UtcNow;
+            await boardService.UpdateTaskAsync(task);
+            await boardService.AddPhaseLogAsync(new TaskPhaseLog
+            {
+                TaskId = id, AgentId = agent.Id,
+                FromPhase = fromPhase, ToPhase = req.TargetPhase,
+                Reason = req.Reason ?? result.Message,
+                CreatedAt = DateTime.UtcNow
+            });
+            await agentService.LogActivityAsync(agent.Id, "advance_phase", $"{fromPhase} → {req.TargetPhase}: {result.Message}", id);
+
+            return Results.Ok(new
+            {
+                taskId = id,
+                from = fromPhase.ToString(),
+                to = req.TargetPhase.ToString(),
+                message = result.Message,
+                columnId = task.ColumnId
+            });
+        });
+
+        api.MapPost("/tasks/{id:int}/approve", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, int id, ApprovalRequest? req) =>
         {
             var agent = GetAgent(ctx);
             var task = await boardService.GetTaskWithDetailsAsync(id);
             if (task is null) return Results.NotFound();
 
-            // Determine target phase based on current
             TaskPhase targetPhase = task.Phase switch
             {
                 TaskPhase.AuthorReview => TaskPhase.ReadyToWork,
@@ -197,8 +240,9 @@ public static class AgentApiEndpoints
                 _ => TaskPhase.Completed
             };
 
-            if (!perms.CanAdvancePhase(agent, task, targetPhase))
-                return Results.Json(new { error = "Forbidden" }, statusCode: 403);
+            var result = stateMachine.TryTransition(task, targetPhase, agent);
+            if (!result.Success)
+                return Results.BadRequest(new { error = result.Message, currentPhase = task.Phase.ToString() });
 
             var approval = new TaskApproval { TaskId = id, AgentId = agent.Id, Decision = ApprovalDecision.Approve, Comment = req?.Comment };
             await boardService.AddApprovalAsync(approval);
@@ -209,20 +253,22 @@ public static class AgentApiEndpoints
             task.Phase = targetPhase;
             if (PermissionService.PhaseColumnMap.TryGetValue(targetPhase, out var col))
                 task.ColumnId = col;
+            task.UpdatedAt = DateTime.UtcNow;
             await boardService.UpdateTaskAsync(task);
 
             await agentService.LogActivityAsync(agent.Id, "approve_task", $"Approved task #{id}: {fromPhase} → {targetPhase}", id);
             return Results.Ok(new { task.Id, task.Phase, task.ColumnId, from = fromPhase, to = targetPhase });
         });
 
-        api.MapPost("/tasks/{id:int}/reject", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, int id, ApprovalRequest? req) =>
+        api.MapPost("/tasks/{id:int}/reject", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, int id, ApprovalRequest? req) =>
         {
             var agent = GetAgent(ctx);
             var task = await boardService.GetTaskWithDetailsAsync(id);
             if (task is null) return Results.NotFound();
 
-            if (!perms.CanAdvancePhase(agent, task, TaskPhase.Killed))
-                return Results.Json(new { error = "Forbidden" }, statusCode: 403);
+            var result = stateMachine.TryTransition(task, TaskPhase.Killed, agent);
+            if (!result.Success)
+                return Results.BadRequest(new { error = result.Message, currentPhase = task.Phase.ToString() });
 
             var approval = new TaskApproval { TaskId = id, AgentId = agent.Id, Decision = ApprovalDecision.Reject, Comment = req?.Comment };
             await boardService.AddApprovalAsync(approval);
@@ -232,20 +278,22 @@ public static class AgentApiEndpoints
 
             task.Phase = TaskPhase.Killed;
             task.ColumnId = 6;
+            task.UpdatedAt = DateTime.UtcNow;
             await boardService.UpdateTaskAsync(task);
 
             await agentService.LogActivityAsync(agent.Id, "reject_task", $"Rejected task #{id}", id);
             return Results.Ok(new { task.Id, task.Phase, task.ColumnId });
         });
 
-        api.MapPost("/tasks/{id:int}/request-changes", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, int id, RequestChangesRequest req) =>
+        api.MapPost("/tasks/{id:int}/request-changes", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, int id, RequestChangesRequest req) =>
         {
             var agent = GetAgent(ctx);
             var task = await boardService.GetTaskWithDetailsAsync(id);
             if (task is null) return Results.NotFound();
 
-            if (task.Phase != TaskPhase.Acceptance || !perms.CanAccept(agent, task))
-                return Results.Json(new { error = "Forbidden", message = "Can only request changes from Acceptance phase" }, statusCode: 403);
+            var result = stateMachine.TryTransition(task, TaskPhase.InProgress, agent);
+            if (!result.Success)
+                return Results.BadRequest(new { error = result.Message, currentPhase = task.Phase.ToString() });
 
             var approval = new TaskApproval { TaskId = id, AgentId = agent.Id, Decision = ApprovalDecision.RequestChanges, Comment = req.Comment };
             await boardService.AddApprovalAsync(approval);
@@ -255,6 +303,7 @@ public static class AgentApiEndpoints
 
             task.Phase = TaskPhase.InProgress;
             task.ColumnId = 3;
+            task.UpdatedAt = DateTime.UtcNow;
             await boardService.UpdateTaskAsync(task);
 
             await agentService.LogActivityAsync(agent.Id, "request_changes", $"Requested changes on task #{id}", id);
@@ -417,6 +466,7 @@ public record ResearchRequest(string Url, string Title, string? Summary);
 public record ProposeRequest(string Content);
 public record CommentRequest(string Content, CommentType? Type);
 public record AdvanceRequest(TaskPhase TargetPhase, string? Reason);
+public record AdvancePhaseRequest(TaskPhase TargetPhase, string? Reason);
 public record ApprovalRequest(string? Comment);
 public record RequestChangesRequest(string Comment);
 public record AddCriterionRequest(string Description, int? Order);

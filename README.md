@@ -228,4 +228,63 @@ curl localhost:5000/api/tasks/1/references -H "$H"
 
 # Get proposals
 curl localhost:5000/api/tasks/1/proposals -H "$H"
+
+# Get available transitions for a task
+curl localhost:5000/api/tasks/1/transitions -H "$H"
+
+# Advance phase using state machine
+curl -X POST localhost:5000/api/tasks/1/advance -H "$H" \
+  -H "Content-Type: application/json" \
+  -d '{"targetPhase":"Brainstorm","reason":"Research complete"}'
 ```
+
+## State Machine
+
+All task phase transitions are validated by `TaskStateMachine`. Invalid transitions return clear error messages.
+
+### Valid Transitions
+
+| From | To | Description | Required Roles |
+|------|-----|-------------|----------------|
+| Research | Brainstorm | Research completed, open for brainstorming | researcher, architect, admin |
+| Brainstorm | Triage | Brainstorming done, ready for triage | architect, admin |
+| Triage | AuthorReview | Triage complete, awaiting author review | architect, admin |
+| AuthorReview | ReadyToWork | Author approved, ready to work | author*, admin |
+| ReadyToWork | InProgress | Work started | worker, admin |
+| InProgress | Acceptance | Work completed, awaiting acceptance | worker, admin |
+| Acceptance | Completed | Accepted and done | author*, reviewer, admin |
+| Acceptance | InProgress | Changes requested, back to work | author*, reviewer, admin |
+| Acceptance | Research | Too many issues, restarting | author*, admin |
+| Any (except Completed/Killed) | Killed | Task killed/rejected | author*, admin |
+
+\* "author" = agent must be the task's `AuthorAgentId`
+
+### Special Validations
+
+- **ReadyToWork**: `ReadyToWorkChecked` flag must be `true`
+- **InProgress** (from ReadyToWork): Task must have an `AssignedAgentId`
+
+### Error Response Format
+
+```json
+{
+  "error": "Invalid transition: 'Research' → 'InProgress'. Allowed transitions from 'Research': [Brainstorm, Killed].",
+  "currentPhase": "Research"
+}
+```
+
+### GET /api/tasks/{id}/transitions
+
+Returns available transitions with permission checks:
+
+```json
+{
+  "currentPhase": "Research",
+  "availableTransitions": [
+    {"targetPhase": "Brainstorm", "description": "Research completed, open for brainstorming", "allowed": true, "reason": null},
+    {"targetPhase": "Killed", "description": "Idea rejected", "allowed": true, "reason": null}
+  ]
+}
+```
+
+Endpoints `/approve`, `/reject`, `/request-changes` also use the state machine and return 400 with descriptive errors on invalid transitions.

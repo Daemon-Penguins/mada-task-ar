@@ -20,6 +20,7 @@ builder.Services.AddDbContextFactory<AppDbContext>(options =>
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddSingleton<PermissionService>();
+builder.Services.AddSingleton<TaskStateMachine>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
