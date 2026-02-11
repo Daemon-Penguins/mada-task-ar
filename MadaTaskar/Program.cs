@@ -55,7 +55,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// HTTPS redirect disabled — use reverse proxy for TLS in production
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
