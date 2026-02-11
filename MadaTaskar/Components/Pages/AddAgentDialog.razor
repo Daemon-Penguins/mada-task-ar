@@ -3,19 +3,31 @@
 <MudDialog>
     <DialogContent>
         <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" Class="mb-4" />
-        <MudTextField @bind-Value="_roles" Label="Roles (comma-separated)" Variant="Variant.Outlined" />
+        <MudText Typo="Typo.subtitle2" Class="mb-2">Roles</MudText>
+        <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" @bind-SelectedValues="_selectedRoles" Color="Color.Primary" Variant="Variant.Filled" CheckMark="true">
+            <MudChip T="string" Text="admin" Icon="@Icons.Material.Filled.AdminPanelSettings">👑 Admin</MudChip>
+            <MudChip T="string" Text="researcher" Icon="@Icons.Material.Filled.Search">🔍 Researcher</MudChip>
+            <MudChip T="string" Text="architect" Icon="@Icons.Material.Filled.Architecture">🧠 Architect</MudChip>
+            <MudChip T="string" Text="worker" Icon="@Icons.Material.Filled.Build">🔧 Worker</MudChip>
+            <MudChip T="string" Text="reviewer" Icon="@Icons.Material.Filled.RateReview">👀 Reviewer</MudChip>
+            <MudChip T="string" Text="observer" Icon="@Icons.Material.Filled.Visibility">📊 Observer</MudChip>
+        </MudChipSet>
+        <MudText Typo="Typo.caption" Class="mt-2 mud-text-secondary">
+            Selected: @(string.Join(", ", _selectedRoles))
+        </MudText>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="Cancel">Cancel</MudButton>
-        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" Disabled="@string.IsNullOrWhiteSpace(_name)">Create</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit" 
+                   Disabled="@(string.IsNullOrWhiteSpace(_name) || !_selectedRoles.Any())">Create</MudButton>
     </DialogActions>
 </MudDialog>
 
 @code {
     [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
     private string _name = "";
-    private string _roles = "worker";
+    private IReadOnlyCollection<string> _selectedRoles = new List<string> { "worker" };
 
     private void Cancel() => MudDialog.Cancel();
-    private void Submit() => MudDialog.Close(DialogResult.Ok(new AgentCreateModel(_name, _roles)));
+    private void Submit() => MudDialog.Close(DialogResult.Ok(new AgentCreateModel(_name, string.Join(",", _selectedRoles))));
 }

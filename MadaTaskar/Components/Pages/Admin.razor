@@ -44,8 +44,9 @@ else
                         <MudTd>@(agent.LastSeenAt?.ToString("g") ?? "—")</MudTd>
                         <MudTd>@agent.CreatedAt.ToString("g")</MudTd>
                         <MudTd>
-                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" OnClick="@(() => CopyKey(agent.ApiKey))" />
-                            <MudIconButton Icon="@(agent.IsActive ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)" Size="Size.Small" Color="@(agent.IsActive ? Color.Error : Color.Success)" OnClick="@(() => ToggleAgent(agent))" />
+                            <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" Color="Color.Info" OnClick="@(() => EditAgentRoles(agent))" Title="Edit Roles" />
+                            <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" OnClick="@(() => CopyKey(agent.ApiKey))" Title="Copy Key" />
+                            <MudIconButton Icon="@(agent.IsActive ? Icons.Material.Filled.Block : Icons.Material.Filled.CheckCircle)" Size="Size.Small" Color="@(agent.IsActive ? Color.Error : Color.Success)" OnClick="@(() => ToggleAgent(agent))" Title="@(agent.IsActive ? "Deactivate" : "Activate")" />
                         </MudTd>
                     </RowTemplate>
                 </MudTable>
@@ -195,6 +196,29 @@ else
             await db.SaveChangesAsync();
         }
         await LoadAgents();
+    }
+
+    private async Task EditAgentRoles(Agent agent)
+    {
+        var parameters = new DialogParameters<EditAgentRolesDialog>
+        {
+            { x => x.AgentName, agent.Name },
+            { x => x.CurrentRoles, agent.Roles }
+        };
+        var dialog = await DialogService.ShowAsync<EditAgentRolesDialog>("Edit Roles", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (result is not null && !result.Canceled && result.Data is string newRoles)
+        {
+            using var db = await DbFactory.CreateDbContextAsync();
+            var a = await db.Agents.FindAsync(agent.Id);
+            if (a != null)
+            {
+                a.Roles = newRoles;
+                await db.SaveChangesAsync();
+            }
+            Snackbar.Add($"Roles updated for {agent.Name}", Severity.Success);
+            await LoadAgents();
+        }
     }
 
     private async Task AddAgent()

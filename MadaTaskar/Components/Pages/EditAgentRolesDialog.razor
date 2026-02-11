@@ -1,0 +1,41 @@
+@using MudBlazor
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">Edit Roles — @AgentName</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudChipSet T="string" SelectionMode="SelectionMode.MultiSelection" @bind-SelectedValues="_selectedRoles" Color="Color.Primary" Variant="Variant.Filled" CheckMark="true">
+            <MudChip T="string" Text="admin">👑 Admin</MudChip>
+            <MudChip T="string" Text="researcher">🔍 Researcher</MudChip>
+            <MudChip T="string" Text="architect">🧠 Architect</MudChip>
+            <MudChip T="string" Text="worker">🔧 Worker</MudChip>
+            <MudChip T="string" Text="reviewer">👀 Reviewer</MudChip>
+            <MudChip T="string" Text="observer">📊 Observer</MudChip>
+        </MudChipSet>
+        <MudText Typo="Typo.caption" Class="mt-2 mud-text-secondary">
+            Selected: @(string.Join(", ", _selectedRoles))
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="Submit"
+                   Disabled="@(!_selectedRoles.Any())">Save</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public string AgentName { get; set; } = "";
+    [Parameter] public string CurrentRoles { get; set; } = "";
+
+    private IReadOnlyCollection<string> _selectedRoles = new List<string>();
+
+    protected override void OnInitialized()
+    {
+        _selectedRoles = CurrentRoles.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+    private void Submit() => MudDialog.Close(DialogResult.Ok(string.Join(",", _selectedRoles)));
+}
