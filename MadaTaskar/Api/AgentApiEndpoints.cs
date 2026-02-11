@@ -54,6 +54,9 @@ public static class AgentApiEndpoints
         {
             var agent = GetAgent(ctx);
             if (!perms.CanCreateTask(agent)) return Results.Forbid();
+            var columnId = req.ColumnId ?? 1;
+            if (columnId is not (1 or 2))
+                return Results.BadRequest(new { error = "Tasks can only be created in Ideas (1) or Backlog (2) columns. Use the phase pipeline to advance tasks." });
             var task = new TaskItem
             {
                 Title = req.Title,
@@ -61,7 +64,7 @@ public static class AgentApiEndpoints
                 Assignee = req.Assignee ?? agent.Name,
                 AssignedAgentId = req.AssignToSelf ? agent.Id : null,
                 Priority = req.Priority ?? Priority.Medium,
-                ColumnId = req.ColumnId ?? 1,
+                ColumnId = columnId,
                 Order = req.Order ?? 0,
                 Phase = TaskPhase.Research,
                 AuthorAgentId = agent.Id

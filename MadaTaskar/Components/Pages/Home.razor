@@ -33,14 +33,17 @@ else
                                   Class="d-flex flex-column gap-2"
                                   Style="min-height: 200px;"
                                   AllowReorder="true" />
-                    <MudButton Variant="Variant.Text"
-                               Color="Color.Primary"
-                               StartIcon="@Icons.Material.Filled.Add"
-                               FullWidth="true"
-                               Class="mt-2"
-                               OnClick="@(() => CreateTask(column.Id))">
-                        Add Task
-                    </MudButton>
+                    @if (column.Id is 1 or 2)
+                    {
+                        <MudButton Variant="Variant.Text"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.Add"
+                                   FullWidth="true"
+                                   Class="mt-2"
+                                   OnClick="@(() => CreateTask(column.Id))">
+                            Add Task
+                        </MudButton>
+                    }
                 </MudPaper>
             }
         </ChildContent>
