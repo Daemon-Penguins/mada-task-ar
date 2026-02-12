@@ -31,7 +31,7 @@ public class AdminPanelTests
     [TearDown]
     public async Task TearDown()
     {
-        await _context.CloseAsync();
+        if (_context != null) await _context.CloseAsync();
     }
 
     [Test]
