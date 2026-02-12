@@ -39,6 +39,7 @@ public class MonkeyTests
     [TearDown]
     public async Task TearDown()
     {
+        await TestFixture.SaveTestArtifactsAsync(_context, _page, TestContext.CurrentContext.Test.Name);
         if (_context != null)
             await _context.CloseAsync();
     }

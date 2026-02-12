@@ -153,15 +153,64 @@ public class TestFixture
         }
     }
 
+    public static string TestResultsDir { get; } = Path.Combine(
+        AppContext.BaseDirectory, "..", "..", "..", "..", "TestResults", "playwright");
+
     public static async Task<IBrowserContext> NewContextAsync()
     {
         if (Browser == null)
             Assert.Ignore("Playwright browsers not installed — skipping UI test.");
-        return await Browser.NewContextAsync(new BrowserNewContextOptions
+
+        Directory.CreateDirectory(TestResultsDir);
+
+        var context = await Browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true,
             BaseURL = BaseUrl
         });
+
+        // Start tracing for each context (captures screenshots, DOM snapshots, network)
+        await context.Tracing.StartAsync(new TracingStartOptions
+        {
+            Screenshots = true,
+            Snapshots = true,
+            Sources = false
+        });
+
+        return context;
+    }
+
+    /// <summary>
+    /// Call in TearDown to save trace + screenshot on failure.
+    /// </summary>
+    public static async Task SaveTestArtifactsAsync(IBrowserContext? context, IPage? page, string testName)
+    {
+        if (context == null) return;
+
+        var safeName = string.Join("_", testName.Split(Path.GetInvalidFileNameChars()));
+
+        try
+        {
+            // Save screenshot on failure
+            if (page != null && TestContext.CurrentContext.Result.Outcome.Status == NUnit.Framework.Interfaces.TestStatus.Failed)
+            {
+                var screenshotPath = Path.Combine(TestResultsDir, $"{safeName}.png");
+                await page.ScreenshotAsync(new PageScreenshotOptions
+                {
+                    Path = screenshotPath,
+                    FullPage = true
+                });
+                TestContext.AddTestAttachment(screenshotPath, "Screenshot on failure");
+            }
+
+            // Save trace (always — useful for debugging)
+            var tracePath = Path.Combine(TestResultsDir, $"{safeName}.zip");
+            await context.Tracing.StopAsync(new TracingStopOptions { Path = tracePath });
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Failed to save test artifacts: {ex.Message}");
+        }
     }
 
     private record TestAgentResponse(int Id, string Name, string ApiKey, string Roles);
