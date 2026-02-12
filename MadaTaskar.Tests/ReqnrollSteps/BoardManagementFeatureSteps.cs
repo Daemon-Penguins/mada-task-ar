@@ -122,7 +122,7 @@ public class BoardManagementFeatureSteps
     {
         var page = _context.Get<IPage>("page");
         await page.GotoAsync("/");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
         await page.WaitForTimeoutAsync(1000);
         // Find the container div that has both the task title and the edit button
         // Structure: <div class="d-flex..."><MudText>Title</MudText><MudIconButton/></div>
@@ -184,8 +184,8 @@ public class BoardManagementFeatureSteps
     {
         var page = _context.Get<IPage>("page");
         await page.WaitForTimeoutAsync(500);
-        await page.GotoAsync("/");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await page.GotoAsync("/", new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await page.WaitForTimeoutAsync(500);
         var content = await page.ContentAsync();
         content.Should().NotContain(taskTitle);
     }

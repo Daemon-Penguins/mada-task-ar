@@ -47,7 +47,7 @@ public class MonkeyTests
     {
         // Given I am on the board page
         await _page.GotoAsync("/");
-        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
         await _page.WaitForTimeoutAsync(1000);
 
         // When I click every non-disabled button
@@ -67,7 +67,7 @@ public class MonkeyTests
     {
         // Given I am on the admin panel
         await _page.GotoAsync("/admin");
-        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
         await _page.WaitForTimeoutAsync(1000);
 
         // When I click every non-disabled button including in dialogs
@@ -111,7 +111,7 @@ public class MonkeyTests
     {
         // Navigate to board
         await _page.GotoAsync("/");
-        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
         await _page.WaitForTimeoutAsync(1000);
 
         // Try to open a task dialog by clicking on a task card
