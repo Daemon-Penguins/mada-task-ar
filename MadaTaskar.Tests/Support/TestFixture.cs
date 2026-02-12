@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Text;
 using MadaTaskar.Tests.Support;
 using Microsoft.Playwright;
 
@@ -16,6 +17,8 @@ public class TestFixture
     public static IPlaywright PlaywrightInstance { get; private set; } = null!;
     public static IBrowser Browser { get; private set; } = null!;
     private static Process? _appProcess;
+    private static readonly StringBuilder _appStdout = new();
+    private static readonly StringBuilder _appStderr = new();
 
     private static readonly int Port = Random.Shared.Next(15000, 16000);
 
@@ -55,7 +58,13 @@ public class TestFixture
                 }
             }
         };
+        _appProcess.OutputDataReceived += (_, e) => { if (e.Data != null) _appStdout.AppendLine(e.Data); };
+        _appProcess.ErrorDataReceived += (_, e) => { if (e.Data != null) _appStderr.AppendLine(e.Data); };
         _appProcess.Start();
+
+        // Drain stdout/stderr asynchronously to prevent pipe buffer deadlock
+        _appProcess.BeginOutputReadLine();
+        _appProcess.BeginErrorReadLine();
 
         // Wait for server to be ready
         HttpClient = new HttpClient { BaseAddress = new Uri(BaseUrl) };
@@ -73,9 +82,7 @@ public class TestFixture
 
         if (!ready)
         {
-            var stderr = _appProcess.StandardError.ReadToEnd();
-            var stdout = _appProcess.StandardOutput.ReadToEnd();
-            throw new Exception($"App failed to start.\nSTDOUT: {stdout}\nSTDERR: {stderr}");
+            throw new Exception($"App failed to start.\nSTDOUT: {_appStdout}\nSTDERR: {_appStderr}");
         }
 
         // Seed test agent
