@@ -28,14 +28,14 @@ public class TestFixture
         BaseUrl = $"http://127.0.0.1:{Port}";
 
         // Find the built DLL
-        var testDir = AppContext.BaseDirectory; // e.g. .../bin/Release/net9.0/
+        var testDir = AppContext.BaseDirectory; // e.g. .../bin/Release/net10.0/
         var projectRoot = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", ".."));
-        var appDll = Path.Combine(projectRoot, "MadaTaskar", "bin", "Release", "net9.0", "MadaTaskar.dll");
+        var appDll = Path.Combine(projectRoot, "MadaTaskar", "bin", "Release", "net10.0", "MadaTaskar.dll");
 
         if (!File.Exists(appDll))
         {
             // Try Debug
-            appDll = Path.Combine(projectRoot, "MadaTaskar", "bin", "Debug", "net9.0", "MadaTaskar.dll");
+            appDll = Path.Combine(projectRoot, "MadaTaskar", "bin", "Debug", "net10.0", "MadaTaskar.dll");
         }
 
         if (!File.Exists(appDll))
