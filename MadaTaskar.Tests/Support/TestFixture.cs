@@ -81,14 +81,22 @@ public class TestFixture
         // Seed test agent
         await SeedTestData();
 
-        // Start Playwright
-        PlaywrightInstance = await Playwright.CreateAsync();
-        Browser = await PlaywrightInstance.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+        // Start Playwright (skip if browsers not installed — allows NUnit-only CI runs)
+        try
         {
-            Headless = true
-        });
-
-        Console.WriteLine($"✅ Test server at {BaseUrl}, Playwright ready");
+            PlaywrightInstance = await Playwright.CreateAsync();
+            Browser = await PlaywrightInstance.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            {
+                Headless = true
+            });
+            Console.WriteLine($"✅ Test server at {BaseUrl}, Playwright ready");
+        }
+        catch (PlaywrightException ex) when (ex.Message.Contains("Executable doesn't exist"))
+        {
+            Console.WriteLine($"⚠️ Playwright browsers not installed — UI tests will be skipped. {ex.Message}");
+            PlaywrightInstance = null;
+            Browser = null!;
+        }
     }
 
     private async Task SeedTestData()
@@ -129,7 +137,7 @@ public class TestFixture
     public async Task GlobalTeardown()
     {
         if (Browser != null) await Browser.CloseAsync();
-        PlaywrightInstance?.Dispose();
+        if (PlaywrightInstance != null) PlaywrightInstance.Dispose();
         HttpClient?.Dispose();
         if (_appProcess is { HasExited: false })
         {
@@ -141,7 +149,7 @@ public class TestFixture
     public static async Task<IBrowserContext> NewContextAsync()
     {
         if (Browser == null)
-            throw new InvalidOperationException("Browser not initialized. Check GlobalSetup output.");
+            Assert.Ignore("Playwright browsers not installed — skipping UI test.");
         return await Browser.NewContextAsync(new BrowserNewContextOptions
         {
             IgnoreHTTPSErrors = true,
