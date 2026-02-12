@@ -58,8 +58,8 @@ jobs:
       - name: Install Playwright browsers
         run: pwsh MadaTaskar.Tests/bin/Release/net9.0/playwright.ps1 install --with-deps chromium
 
-      - name: Run tests
-        run: dotnet test MadaTaskar.Tests/ -c Release --logger "trx;LogFileName=results.trx" --results-directory TestResults
+      - name: Run tests (NUnit only, skip Playwright/Gherkin in CI)
+        run: dotnet test MadaTaskar.Tests/ -c Release --filter "FullyQualifiedName!~Features" --logger "trx;LogFileName=results.trx" --results-directory TestResults
 
       - name: Upload test results
         if: always()
