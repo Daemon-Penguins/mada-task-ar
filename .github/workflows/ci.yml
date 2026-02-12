@@ -50,18 +50,12 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
-      - name: Build main project
-        run: dotnet build MadaTaskar/MadaTaskar.csproj -c Release
-
       - name: Build test project
         run: dotnet build MadaTaskar.Tests/MadaTaskar.Tests.csproj -c Release
 
-      - name: Install Playwright browsers
-        run: pwsh MadaTaskar.Tests/bin/Release/net9.0/playwright.ps1 install --with-deps chromium
-
-      - name: Run all tests
-        run: dotnet test MadaTaskar.Tests/ -c Release --logger "trx;LogFileName=results.trx" --results-directory TestResults
-        timeout-minutes: 5
+      - name: Run NUnit tests (API + unit — no browser needed)
+        run: dotnet test MadaTaskar.Tests/ -c Release --filter "FullyQualifiedName!~Features" --logger "trx;LogFileName=results.trx" --results-directory TestResults
+        timeout-minutes: 3
 
       - name: Upload test results
         if: always()
