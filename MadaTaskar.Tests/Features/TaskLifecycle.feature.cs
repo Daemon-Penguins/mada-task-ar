@@ -88,10 +88,7 @@ namespace MadaTaskar.Tests.Features
 #line 6
   #line hidden
 #line 7
-    await testRunner.GivenAsync("I am logged in", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
-#line hidden
-#line 8
-    await testRunner.AndAsync("the test agent \"TestBot\" is registered", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+    await testRunner.GivenAsync("the test agent \"TestBot\" is registered", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
         }
         
@@ -102,7 +99,7 @@ namespace MadaTaskar.Tests.Features
             string[] tagsOfScenario = ((string[])(null));
             System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new System.Collections.Specialized.OrderedDictionary();
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("New task starts in Research phase", null, tagsOfScenario, argumentsOfScenario, featureTags);
-#line 10
+#line 9
   this.ScenarioInitialize(scenarioInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -115,13 +112,13 @@ namespace MadaTaskar.Tests.Features
 #line 6
   await this.FeatureBackgroundAsync();
 #line hidden
-#line 11
+#line 10
     await testRunner.GivenAsync("I create a task \"Pipeline Test\" via API", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 12
+#line 11
     await testRunner.ThenAsync("the task should be in \"Research\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 13
+#line 12
     await testRunner.AndAsync("the task should be in \"Backlog\" column", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -135,7 +132,7 @@ namespace MadaTaskar.Tests.Features
             string[] tagsOfScenario = ((string[])(null));
             System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new System.Collections.Specialized.OrderedDictionary();
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Full task lifecycle via API", null, tagsOfScenario, argumentsOfScenario, featureTags);
-#line 15
+#line 14
   this.ScenarioInitialize(scenarioInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -148,46 +145,46 @@ namespace MadaTaskar.Tests.Features
 #line 6
   await this.FeatureBackgroundAsync();
 #line hidden
-#line 16
+#line 15
     await testRunner.GivenAsync("I create a task \"Full Lifecycle\" via API", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 17
+#line 16
     await testRunner.WhenAsync("the agent adds research reference \"https://example.com\" with title \"Reference\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 18
+#line 17
     await testRunner.AndAsync("the agent advances the task to \"Brainstorm\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 19
+#line 18
     await testRunner.AndAsync("the agent adds a proposal \"Let\'s use approach A\"", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 20
+#line 19
     await testRunner.AndAsync("the agent advances the task to \"Triage\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 21
+#line 20
     await testRunner.AndAsync("the agent advances the task to \"AuthorReview\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 22
+#line 21
     await testRunner.AndAsync("the author sets ReadyToWork to true", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 23
+#line 22
     await testRunner.AndAsync("the agent advances the task to \"ReadyToWork\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 24
+#line 23
     await testRunner.AndAsync("the agent assigns the task to themselves", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 25
+#line 24
     await testRunner.AndAsync("the agent advances the task to \"InProgress\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 26
+#line 25
     await testRunner.AndAsync("the agent advances the task to \"Acceptance\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 27
+#line 26
     await testRunner.AndAsync("the agent approves the task", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 28
+#line 27
     await testRunner.ThenAsync("the task should be in \"Completed\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 29
+#line 28
     await testRunner.AndAsync("the task should be in \"Done\" column", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -201,7 +198,7 @@ namespace MadaTaskar.Tests.Features
             string[] tagsOfScenario = ((string[])(null));
             System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new System.Collections.Specialized.OrderedDictionary();
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Invalid phase transition returns error", null, tagsOfScenario, argumentsOfScenario, featureTags);
-#line 31
+#line 30
   this.ScenarioInitialize(scenarioInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -214,16 +211,16 @@ namespace MadaTaskar.Tests.Features
 #line 6
   await this.FeatureBackgroundAsync();
 #line hidden
-#line 32
+#line 31
     await testRunner.GivenAsync("I create a task \"Invalid Transition\" via API", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 33
+#line 32
     await testRunner.WhenAsync("the agent tries to advance directly to \"InProgress\" phase", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 34
+#line 33
     await testRunner.ThenAsync("the API should return error 400", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
-#line 35
+#line 34
     await testRunner.AndAsync("the error should explain allowed transitions", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
             }
@@ -237,7 +234,7 @@ namespace MadaTaskar.Tests.Features
             string[] tagsOfScenario = ((string[])(null));
             System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new System.Collections.Specialized.OrderedDictionary();
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("Acceptance criteria must be met", null, tagsOfScenario, argumentsOfScenario, featureTags);
-#line 37
+#line 36
   this.ScenarioInitialize(scenarioInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -250,13 +247,13 @@ namespace MadaTaskar.Tests.Features
 #line 6
   await this.FeatureBackgroundAsync();
 #line hidden
-#line 38
+#line 37
     await testRunner.GivenAsync("I create a task \"Criteria Test\" via API with acceptance criteria", ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 39
+#line 38
     await testRunner.WhenAsync("I try to auto-accept the task", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 40
+#line 39
     await testRunner.ThenAsync("it should fail because not all criteria are met", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
             }

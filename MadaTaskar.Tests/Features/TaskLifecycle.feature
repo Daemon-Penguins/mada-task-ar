@@ -4,8 +4,7 @@ Feature: Task Lifecycle Pipeline
   So that every task goes through proper research, review, and acceptance
 
   Background:
-    Given I am logged in
-    And the test agent "TestBot" is registered
+    Given the test agent "TestBot" is registered
 
   Scenario: New task starts in Research phase
     Given I create a task "Pipeline Test" via API

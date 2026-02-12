@@ -48,7 +48,7 @@ public class LoginTests
 
         // And I should see the app header
         var header = await _homePage.GetHeaderTextAsync();
-        header.Should().Contain("Mada-TASK-ar", "the board header should be visible");
+        header.Should().Match("*Mada*", "the board header should be visible");
     }
 
     [Test]

@@ -23,9 +23,8 @@ public class AdminPage
 
     public async Task NavigateAsync()
     {
-        await _page.GotoAsync("/admin");
-        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await _page.WaitForTimeoutAsync(500);
+        await _page.GotoAsync("/admin", new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await _page.WaitForTimeoutAsync(1000);
     }
 
     public async Task<bool> IsAgentsTabVisible() => await AgentsTab.IsVisibleAsync();

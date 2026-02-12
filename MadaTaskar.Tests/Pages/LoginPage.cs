@@ -15,13 +15,13 @@ public class LoginPage
     // Selectors
     private ILocator UsernameInput => _page.Locator("input[autocomplete='username'], input[type='text']").First;
     private ILocator PasswordInput => _page.Locator("input[type='password']").First;
-    private ILocator LoginButton => _page.Locator("button[type='submit'], button:has-text('Login'), button:has-text('Sign in')").First;
+    private ILocator LoginButton => _page.Locator("button[type='submit'], button:has-text('Sign In'), button:has-text('Login')").First;
     private ILocator ErrorMessage => _page.Locator(".mud-alert-text-error, .mud-snackbar-error, .error-message, .mud-alert");
 
     public async Task NavigateAsync()
     {
-        await _page.GotoAsync("/login");
-        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await _page.GotoAsync("/login", new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await _page.WaitForTimeoutAsync(500);
     }
 
     public async Task EnterCredentialsAsync(string username, string password)

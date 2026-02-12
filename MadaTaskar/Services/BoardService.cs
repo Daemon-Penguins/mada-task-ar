@@ -55,6 +55,8 @@ public class BoardService
         existing.Order = task.Order;
         existing.Phase = task.Phase;
         existing.AuthorAgentId = task.AuthorAgentId;
+        existing.AssignedAgentId = task.AssignedAgentId;
+        existing.AssignedAgent = task.AssignedAgent;
         existing.ReadyToWorkChecked = task.ReadyToWorkChecked;
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();

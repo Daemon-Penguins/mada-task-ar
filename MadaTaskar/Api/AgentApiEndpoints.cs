@@ -14,14 +14,14 @@ public static class AgentApiEndpoints
         api.MapGet("/agents", async (HttpContext ctx, AgentService agentService, PermissionService perms) =>
         {
             var agent = GetAgent(ctx);
-            if (!perms.CanManageAgents(agent)) return Results.Forbid();
+            if (!perms.CanManageAgents(agent)) return Results.Json(new { error = "Forbidden" }, statusCode: 403);
             return Results.Ok(await agentService.GetAgentsAsync());
         });
 
         api.MapPost("/agents/register", async (HttpContext ctx, AgentService agentService, PermissionService perms, RegisterAgentRequest req) =>
         {
             var agent = GetAgent(ctx);
-            if (!perms.CanManageAgents(agent)) return Results.Forbid();
+            if (!perms.CanManageAgents(agent)) return Results.Json(new { error = "Forbidden" }, statusCode: 403);
             var newAgent = await agentService.RegisterAgentAsync(req.Name, req.Roles ?? "worker");
             await agentService.LogActivityAsync(agent.Id, "register_agent", $"Registered '{newAgent.Name}' ({newAgent.Roles})");
             return Results.Ok(newAgent);
@@ -30,7 +30,7 @@ public static class AgentApiEndpoints
         api.MapDelete("/agents/{id:int}", async (HttpContext ctx, AgentService agentService, PermissionService perms, int id) =>
         {
             var agent = GetAgent(ctx);
-            if (!perms.CanManageAgents(agent)) return Results.Forbid();
+            if (!perms.CanManageAgents(agent)) return Results.Json(new { error = "Forbidden" }, statusCode: 403);
             var ok = await agentService.DeactivateAgentAsync(id);
             if (!ok) return Results.NotFound();
             await agentService.LogActivityAsync(agent.Id, "deactivate_agent", $"Deactivated agent #{id}");
@@ -53,8 +53,8 @@ public static class AgentApiEndpoints
         api.MapPost("/tasks", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, CreateTaskRequest req) =>
         {
             var agent = GetAgent(ctx);
-            if (!perms.CanCreateTask(agent)) return Results.Forbid();
-            var columnId = req.ColumnId ?? 1;
+            if (!perms.CanCreateTask(agent)) return Results.Json(new { error = "Forbidden" }, statusCode: 403);
+            var columnId = req.ColumnId ?? 2;
             if (columnId is not (1 or 2))
                 return Results.BadRequest(new { error = "Tasks can only be created in Ideas (1) or Backlog (2) columns. Use the phase pipeline to advance tasks." });
             var task = new TaskItem
@@ -87,6 +87,7 @@ public static class AgentApiEndpoints
             if (req.Priority.HasValue) existing.Priority = req.Priority.Value;
             if (req.ColumnId.HasValue) existing.ColumnId = req.ColumnId.Value;
             if (req.Order.HasValue) existing.Order = req.Order.Value;
+            if (req.ReadyToWorkChecked.HasValue) existing.ReadyToWorkChecked = req.ReadyToWorkChecked.Value;
 
             await boardService.UpdateTaskAsync(existing);
             await agentService.LogActivityAsync(agent.Id, "update_task", $"Updated '{existing.Title}'", id);
@@ -118,7 +119,7 @@ public static class AgentApiEndpoints
         api.MapDelete("/tasks/{id:int}", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, int id) =>
         {
             var agent = GetAgent(ctx);
-            if (!perms.CanDeleteTask(agent)) return Results.Forbid();
+            if (!perms.CanDeleteTask(agent)) return Results.Json(new { error = "Forbidden" }, statusCode: 403);
             await boardService.DeleteTaskAsync(id);
             await agentService.LogActivityAsync(agent.Id, "delete_task", $"Deleted task #{id}", id);
             return Results.Ok();
@@ -129,7 +130,7 @@ public static class AgentApiEndpoints
         api.MapPost("/tasks/{id:int}/research", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, int id, ResearchRequest req) =>
         {
             var agent = GetAgent(ctx);
-            if (!perms.CanResearch(agent)) return Results.Forbid();
+            if (!perms.CanResearch(agent)) return Results.Json(new { error = "Forbidden" }, statusCode: 403);
             var task = await boardService.GetTaskWithDetailsAsync(id);
             if (task is null) return Results.NotFound();
 
@@ -142,7 +143,7 @@ public static class AgentApiEndpoints
         api.MapPost("/tasks/{id:int}/propose", async (HttpContext ctx, BoardService boardService, AgentService agentService, PermissionService perms, int id, ProposeRequest req) =>
         {
             var agent = GetAgent(ctx);
-            if (!perms.CanPropose(agent)) return Results.Forbid();
+            if (!perms.CanPropose(agent)) return Results.Json(new { error = "Forbidden" }, statusCode: 403);
             var task = await boardService.GetTaskWithDetailsAsync(id);
             if (task is null) return Results.NotFound();
 
@@ -255,7 +256,7 @@ public static class AgentApiEndpoints
             });
         });
 
-        api.MapPost("/tasks/{id:int}/approve", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, int id, ApprovalRequest? req) =>
+        api.MapPost("/tasks/{id:int}/approve", async (HttpContext ctx, BoardService boardService, AgentService agentService, TaskStateMachine stateMachine, RewardService rewardService, int id, ApprovalRequest? req) =>
         {
             var agent = GetAgent(ctx);
             var task = await boardService.GetTaskWithDetailsAsync(id);
@@ -285,6 +286,15 @@ public static class AgentApiEndpoints
             await boardService.UpdateTaskAsync(task);
 
             await agentService.LogActivityAsync(agent.Id, "approve_task", $"Approved task #{id}: {fromPhase} → {targetPhase}", id);
+
+            // Award badges when completing via approve
+            if (targetPhase == TaskPhase.Completed)
+            {
+                var freshTask = await boardService.GetTaskWithDetailsAsync(id);
+                if (freshTask != null)
+                    await rewardService.AwardBadgesForCompletion(freshTask);
+            }
+
             return Results.Ok(new { task.Id, task.Phase, task.ColumnId, from = fromPhase, to = targetPhase });
         });
 
@@ -454,10 +464,19 @@ public static class AgentApiEndpoints
         });
 
         // --- Retrospective ---
-        api.MapGet("/tasks/{id:int}/retrospective", async (HttpContext ctx, BoardService boardService, int id) =>
+        api.MapGet("/tasks/{id:int}/retrospective", async (HttpContext ctx, BoardService boardService, IDbContextFactory<AppDbContext> dbFactory, int id) =>
         {
             var task = await boardService.GetTaskWithDetailsAsync(id);
             if (task is null) return Results.NotFound();
+
+            // Reload phase logs directly from DB to avoid stale navigation property
+            using var freshDb = await dbFactory.CreateDbContextAsync();
+            var freshPhaseLogs = await freshDb.TaskPhaseLogs
+                .Where(p => p.TaskId == id)
+                .Include(p => p.Agent)
+                .OrderBy(p => p.CreatedAt)
+                .ToListAsync();
+            task.PhaseLogs = freshPhaseLogs;
 
             var phases = new List<object>();
             var phaseLogs = task.PhaseLogs.OrderBy(p => p.CreatedAt).ToList();
@@ -561,7 +580,7 @@ public class AgentAuthFilter : IEndpointFilter
 // --- DTOs ---
 public record RegisterAgentRequest(string Name, string? Roles);
 public record CreateTaskRequest(string Title, string? Description, string? Assignee, Priority? Priority, int? ColumnId, int? Order, bool AssignToSelf = false);
-public record UpdateTaskRequest(string? Title, string? Description, string? Assignee, Priority? Priority, int? ColumnId, int? Order);
+public record UpdateTaskRequest(string? Title, string? Description, string? Assignee, Priority? Priority, int? ColumnId, int? Order, bool? ReadyToWorkChecked);
 public record MoveTaskRequest(int ColumnId, int? Order);
 public record AssignTaskRequest(int? AgentId);
 public record ResearchRequest(string Url, string Title, string? Summary);

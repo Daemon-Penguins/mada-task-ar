@@ -13,15 +13,14 @@ public class HomePage
     public HomePage(IPage page) => _page = page;
 
     // Selectors
-    private ILocator Header => _page.Locator("h1, h2, h3, .mud-typography-h4, .mud-typography-h5").First;
-    private ILocator LogoutButton => _page.Locator("button:has-text('Logout'), button:has-text('Sign out'), button[title='Logout']").First;
+    private ILocator Header => _page.Locator(".mud-appbar");
+    private ILocator LogoutButton => _page.Locator(".mud-appbar button").Last;
     private ILocator AdminLink => _page.Locator("a[href='/admin'], button:has-text('Admin')").First;
 
     public async Task NavigateAsync()
     {
-        await _page.GotoAsync("/");
-        await _page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await _page.WaitForTimeoutAsync(500);
+        await _page.GotoAsync("/", new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await _page.WaitForTimeoutAsync(1000);
     }
 
     public async Task<string> GetHeaderTextAsync()
@@ -83,7 +82,16 @@ public class HomePage
 
     public async Task ClickLogoutAsync()
     {
-        await LogoutButton.ClickAsync();
+        // Wait for the appbar to render with buttons
+        await _page.WaitForSelectorAsync(".mud-appbar button", new PageWaitForSelectorOptions { Timeout = 10000 });
+        await _page.WaitForTimeoutAsync(500);
+        // Find the logout icon button (last button in appbar)
+        var buttons = _page.Locator(".mud-appbar button");
+        var count = await buttons.CountAsync();
+        if (count > 0)
+            await buttons.Nth(count - 1).ClickAsync();
+        else
+            await LogoutButton.ClickAsync();
         await _page.WaitForTimeoutAsync(1000);
     }
 
