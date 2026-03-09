@@ -10,6 +10,45 @@ html, body {
     cursor: grabbing;
 }
 
+/* 📱 Mobile responsive board */
+.board-container {
+    display: flex;
+    flex-direction: row;
+    gap: 1rem;
+    width: 100%;
+    min-height: 70vh;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 1rem;
+}
+
+.board-column {
+    flex: 0 0 280px;
+    min-width: 280px;
+    min-height: 400px;
+    background-color: var(--mud-palette-surface);
+}
+
+@media (max-width: 600px) {
+    .board-container {
+        flex-direction: column;
+        overflow-x: unset;
+    }
+
+    .board-column {
+        flex: 1 1 auto;
+        min-width: unset;
+        width: 100%;
+    }
+}
+
+@media (min-width: 601px) and (max-width: 960px) {
+    .board-column {
+        flex: 0 0 240px;
+        min-width: 240px;
+    }
+}
+
 /* 💥 Glitter Bomb on Delete */
 @keyframes glitter-particle {
     0% { transform: translate(0, 0) scale(1); opacity: 1; }
