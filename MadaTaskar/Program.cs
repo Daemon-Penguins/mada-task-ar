@@ -14,8 +14,23 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddMudServices();
 
-builder.Services.AddDbContextFactory<AppDbContext>(options =>
-    options.UseInMemoryDatabase("MadaTaskar"));
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(connectionString))
+{
+    builder.Services.AddDbContextFactory<AppDbContext>(options =>
+        options.UseSqlServer(connectionString, sqlOptions =>
+        {
+            sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorNumbersToAdd: null);
+        }));
+}
+else
+{
+    builder.Services.AddDbContextFactory<AppDbContext>(options =>
+        options.UseInMemoryDatabase("MadaTaskar"));
+}
 
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<AgentService>();
