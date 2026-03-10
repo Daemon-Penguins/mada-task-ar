@@ -32,6 +32,7 @@ else
         options.UseInMemoryDatabase("MadaTaskar"));
 }
 
+builder.Services.AddSingleton<EventBusService>();
 builder.Services.AddScoped<BoardService>();
 builder.Services.AddScoped<AgentService>();
 builder.Services.AddSingleton<PermissionService>();

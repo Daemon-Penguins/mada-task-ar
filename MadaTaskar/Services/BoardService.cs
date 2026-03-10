@@ -6,10 +6,12 @@ namespace MadaTaskar.Services;
 public class BoardService
 {
     private readonly IDbContextFactory<AppDbContext> _factory;
+    private readonly EventBusService _bus;
 
-    public BoardService(IDbContextFactory<AppDbContext> factory)
+    public BoardService(IDbContextFactory<AppDbContext> factory, EventBusService bus)
     {
         _factory = factory;
+        _bus = bus;
     }
 
     public async Task<Board?> GetBoardAsync(int boardId = 1)
@@ -38,6 +40,17 @@ public class BoardService
         task.UpdatedAt = DateTime.UtcNow;
         db.Tasks.Add(task);
         await db.SaveChangesAsync();
+
+        await _bus.PublishAsync(new BoardEvent
+        {
+            Type = "task.created",
+            TaskId = task.Id,
+            TaskTitle = task.Title,
+            Assignee = task.Assignee,
+            Phase = task.Phase.ToString(),
+            Details = $"Priorytet: {task.Priority}"
+        }, task.Assignee?.ToLower());
+
         return task;
     }
 
@@ -46,6 +59,9 @@ public class BoardService
         using var db = await _factory.CreateDbContextAsync();
         var existing = await db.Tasks.FindAsync(task.Id);
         if (existing is null) return;
+
+        var prevAssignee = existing.Assignee;
+        var prevPhase = existing.Phase;
 
         existing.Title = task.Title;
         existing.Description = task.Description;
@@ -60,18 +76,61 @@ public class BoardService
         existing.ReadyToWorkChecked = task.ReadyToWorkChecked;
         existing.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+
+        // Event: zmiana przypisania
+        if (prevAssignee != task.Assignee)
+        {
+            await _bus.PublishAsync(new BoardEvent
+            {
+                Type = "task.assigned",
+                TaskId = task.Id,
+                TaskTitle = task.Title,
+                Assignee = task.Assignee,
+                Phase = task.Phase.ToString(),
+                Details = $"Poprzedni assignee: {prevAssignee ?? "brak"}"
+            }, task.Assignee?.ToLower());
+        }
+
+        // Event: zmiana fazy
+        if (prevPhase != task.Phase)
+        {
+            await _bus.PublishAsync(new BoardEvent
+            {
+                Type = "task.phase_changed",
+                TaskId = task.Id,
+                TaskTitle = task.Title,
+                Assignee = task.Assignee,
+                Phase = task.Phase.ToString(),
+                Details = $"{prevPhase} → {task.Phase}"
+            }, task.Assignee?.ToLower());
+        }
     }
 
     public async Task MoveTaskAsync(int taskId, int newColumnId, int newOrder)
     {
         using var db = await _factory.CreateDbContextAsync();
-        var task = await db.Tasks.FindAsync(taskId);
+        var task = await db.Tasks
+            .Include(t => t.Column)
+            .FirstOrDefaultAsync(t => t.Id == taskId);
         if (task is null) return;
 
+        var prevColumnId = task.ColumnId;
         task.ColumnId = newColumnId;
         task.Order = newOrder;
         task.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+
+        if (prevColumnId != newColumnId)
+        {
+            await _bus.PublishAsync(new BoardEvent
+            {
+                Type = "task.moved",
+                TaskId = task.Id,
+                TaskTitle = task.Title,
+                Assignee = task.Assignee,
+                Details = $"Kolumna: {prevColumnId} → {newColumnId}"
+            }, task.Assignee?.ToLower());
+        }
     }
 
     public async Task DeleteTaskAsync(int taskId)

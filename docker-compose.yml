@@ -7,6 +7,9 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ConnectionStrings__DefaultConnection=Server=mssql;Database=MadaTaskar;User Id=sa;Password=MadaPenguin2026!;TrustServerCertificate=True;
+      - RabbitMQ__Host=172.16.1.150
+      - RabbitMQ__User=skipper
+      - RabbitMQ__Pass=Grudzien123!!
     depends_on:
       mssql:
         condition: service_healthy
