@@ -5,7 +5,7 @@
 @inject IDbContextFactory<AppDbContext> DbFactory
 @inject BoardService BoardService
 
-<MudDialog Style="min-width: 600px;">
+<MudDialog Style="width: 100%; max-width: 600px;">
     <TitleContent>
         <div class="d-flex align-center gap-2">
             <MudIcon Icon="@(IsNew ? Icons.Material.Filled.Add : Icons.Material.Filled.Assignment)" />
@@ -30,7 +30,7 @@
         <MudTextField @bind-Value="Task.Description" Label="Description" Lines="3" Class="mb-3" 
                       ReadOnly="@IsLocked" />
         
-        <div class="d-flex gap-3 mb-3">
+        <div class="d-flex gap-3 mb-3 dialog-fields-row">
             <MudSelect T="int?" @bind-Value="_selectedAssigneeAgentId" Label="Assign to (Agent)" 
                        Class="flex-1" Disabled="@IsLocked" Clearable="true"
                        AnchorOrigin="Origin.BottomCenter">
